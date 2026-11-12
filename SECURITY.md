@@ -39,6 +39,10 @@ Only the latest release receives security fixes during early development.
   opens or saves and without network access; hardened runtime enabled; no
   third-party dynamic libraries; release builds forbid debugger attachment.
   CI verifies these properties on every change.
+- **Data integrity.** Files are written atomically and preserved byte for
+  byte (encoding, line endings, byte order mark). Files that are not valid
+  UTF-8 or larger than 50 MiB are refused instead of being altered. External
+  changes are never overwritten silently.
 
 Planned: a JavaScript-free preview with a strict Content Security Policy,
 and Flatpak sandboxing on Linux.
