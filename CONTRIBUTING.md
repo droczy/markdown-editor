@@ -52,4 +52,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets
 cargo test --workspace
 cargo deny check
+xcrun swift-format lint --strict --recursive apps/macos/App apps/macos/UITests apps/macos/Packages
 ```
+
+For the macOS app see the build and test commands in the [README](README.md).

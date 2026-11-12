@@ -1,0 +1,100 @@
+# Xcode project definition. Generate the project with `xcodegen generate`
+# (run in this directory); the generated .xcodeproj is not committed.
+
+name: MarkdownEditor
+
+options:
+  bundleIdPrefix: io.github.droczy
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    # The user-visible app name is defined only here (working title).
+    APP_DISPLAY_NAME: Markdown Editor
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+    ARCHS: arm64
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    # Ad-hoc signing: no Apple Developer account needed for personal use.
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+
+packages:
+  MarkdownEditorKit:
+    path: Packages/MarkdownEditorKit
+
+targets:
+  MarkdownEditor:
+    type: application
+    platform: macOS
+    sources: [App]
+    dependencies:
+      - package: MarkdownEditorKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.droczy.markdowneditor
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: NO
+      configs:
+        Release:
+          # Never allow debuggers to attach to release builds.
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleName: $(APP_DISPLAY_NAME)
+        CFBundleDisplayName: $(APP_DISPLAY_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.productivity
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSHumanReadableCopyright: "Copyright © 2026 droczy. MIT License."
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Markdown Document
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [net.daringfireball.markdown]
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: net.daringfireball.markdown
+            UTTypeDescription: Markdown Document
+            UTTypeConformsTo: [public.plain-text]
+            UTTypeTagSpecification:
+              public.filename-extension: [md, markdown]
+              public.mime-type: [text/markdown]
+    entitlements:
+      path: App/MarkdownEditor.entitlements
+      properties:
+        # Sandbox: access only to files the user explicitly opens or saves.
+        # No network entitlement: the app is completely offline.
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+
+  MarkdownEditorUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources: [UITests]
+    dependencies:
+      - target: MarkdownEditor
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.droczy.markdowneditor.uitests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  MarkdownEditor:
+    build:
+      targets:
+        MarkdownEditor: all
+        MarkdownEditorUITests: [test]
+    test:
+      config: Debug
+      targets: [MarkdownEditorUITests]

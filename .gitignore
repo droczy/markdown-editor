@@ -7,3 +7,9 @@
 *.profraw
 lcov.info
 .DS_Store
+/apps/macos/*.xcodeproj/
+/apps/macos/build/
+/apps/macos/App/Info.plist
+/apps/macos/App/*.entitlements
+.build/
+.swiftpm/
