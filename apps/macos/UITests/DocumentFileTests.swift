@@ -2,16 +2,20 @@ import XCTest
 
 /// End-to-end tests with real files: what is on disk after opening, editing,
 /// saving and closing must be exactly what the user expects.
+///
+/// Main-actor isolated as a whole: UI automation APIs must run on the main
+/// thread (enforced by the XCTest version used in CI).
+@MainActor
 final class DocumentFileTests: XCTestCase {
-    private var directory: URL!
-    private var app: XCUIApplication!
+    private let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("DocumentFileTests-\(UUID().uuidString)", isDirectory: true)
+    private var app = XCUIApplication?.none
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
-        directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("DocumentFileTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        app = XCUIApplication()
+        let app = XCUIApplication()
+        self.app = app
         // Start without windows restored from earlier test runs.
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
@@ -19,8 +23,8 @@ final class DocumentFileTests: XCTestCase {
         app.typeKey(.escape, modifierFlags: [])
     }
 
-    override func tearDownWithError() throws {
-        app.terminate()
+    override func tearDown() async throws {
+        app?.terminate()
         // Restore write permission so read-only fixtures can be deleted.
         if let files = try? FileManager.default.contentsOfDirectory(atPath: directory.path) {
             for file in files {
@@ -33,6 +37,14 @@ final class DocumentFileTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// The app launched in `setUp`.
+    private var launchedApp: XCUIApplication {
+        guard let app else {
+            preconditionFailure("setUp did not launch the app")
+        }
+        return app
+    }
 
     private func fixture(_ name: String, bytes: Data) throws -> URL {
         let url = directory.appendingPathComponent(name)
@@ -58,13 +70,13 @@ final class DocumentFileTests: XCTestCase {
             opened.fulfill()
         }
         wait(for: [opened], timeout: 10)
-        app.activate()
+        launchedApp.activate()
     }
 
     /// Opens `url` in the app under test and returns its editor.
     private func open(_ url: URL) throws -> XCUIElement {
         try send(url)
-        let editor = app.textViews["editor"].firstMatch
+        let editor = launchedApp.textViews["editor"].firstMatch
         XCTAssertTrue(
             editor.waitForExistence(timeout: 10),
             "editor did not appear for \(url.lastPathComponent)")
@@ -101,7 +113,8 @@ final class DocumentFileTests: XCTestCase {
     private func errorIsShown(containing fragment: String, timeout: TimeInterval = 10) -> Bool {
         let predicate = NSPredicate(
             format: "value CONTAINS[c] %@ OR label CONTAINS[c] %@", fragment, fragment)
-        return app.staticTexts.matching(predicate).firstMatch.waitForExistence(timeout: timeout)
+        return launchedApp.staticTexts.matching(predicate).firstMatch.waitForExistence(
+            timeout: timeout)
     }
 
     // MARK: - Tests
@@ -113,7 +126,7 @@ final class DocumentFileTests: XCTestCase {
         XCTAssertEqual(editor.value as? String, "# Original\n")
 
         append("more", to: editor)
-        app.typeKey("s", modifierFlags: .command)
+        launchedApp.typeKey("s", modifierFlags: .command)
 
         waitForContents(of: url, toEqual: Data("# Original\nmore".utf8))
     }
@@ -124,9 +137,10 @@ final class DocumentFileTests: XCTestCase {
         let editor = try open(url)
         append("typed", to: editor)
 
-        app.typeKey("w", modifierFlags: .command)
+        launchedApp.typeKey("w", modifierFlags: .command)
 
-        XCTAssertFalse(app.sheets.firstMatch.waitForExistence(timeout: 2), "closing asked to save")
+        XCTAssertFalse(
+            launchedApp.sheets.firstMatch.waitForExistence(timeout: 2), "closing asked to save")
         waitForContents(of: url, toEqual: Data("start\ntyped".utf8))
     }
 
@@ -135,7 +149,7 @@ final class DocumentFileTests: XCTestCase {
         let url = try fixture("crlf.md", text: "line one\r\nline two\r\n")
         let editor = try open(url)
         append("three", to: editor)
-        app.typeKey("s", modifierFlags: .command)
+        launchedApp.typeKey("s", modifierFlags: .command)
 
         waitForContents(of: url, toEqual: Data("line one\r\nline two\r\nthree".utf8))
     }
@@ -145,7 +159,7 @@ final class DocumentFileTests: XCTestCase {
         let url = try fixture("notes.txt", text: "plain\n")
         let editor = try open(url)
         append("text", to: editor)
-        app.typeKey("s", modifierFlags: .command)
+        launchedApp.typeKey("s", modifierFlags: .command)
 
         waitForContents(of: url, toEqual: Data("plain\ntext".utf8))
         let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
@@ -159,7 +173,7 @@ final class DocumentFileTests: XCTestCase {
         try send(url)
 
         XCTAssertTrue(errorIsShown(containing: "UTF-8"), "no UTF-8 error shown")
-        XCTAssertFalse(app.textViews["editor"].exists)
+        XCTAssertFalse(launchedApp.textViews["editor"].exists)
         XCTAssertEqual(try contents(of: url), latin1)
     }
 
@@ -170,7 +184,7 @@ final class DocumentFileTests: XCTestCase {
         try send(url)
 
         XCTAssertTrue(errorIsShown(containing: "too large"), "no size error shown")
-        XCTAssertFalse(app.textViews["editor"].exists)
+        XCTAssertFalse(launchedApp.textViews["editor"].exists)
         XCTAssertEqual(
             try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int, bytes.count)
     }
@@ -183,13 +197,13 @@ final class DocumentFileTests: XCTestCase {
 
         let external = Data("external edit\n".utf8)
         try external.write(to: url)
-        app.typeKey("s", modifierFlags: .command)
+        launchedApp.typeKey("s", modifierFlags: .command)
 
         // Either the system asks how to resolve the conflict, or it keeps the
         // external version; in no case may the external edit be lost silently.
         let asked =
-            app.sheets.firstMatch.waitForExistence(timeout: 5)
-            || app.dialogs.firstMatch.waitForExistence(timeout: 1)
+            launchedApp.sheets.firstMatch.waitForExistence(timeout: 5)
+            || launchedApp.dialogs.firstMatch.waitForExistence(timeout: 1)
         if !asked {
             XCTAssertEqual(
                 try contents(of: url), external, "external edit was overwritten silently")
@@ -204,11 +218,11 @@ final class DocumentFileTests: XCTestCase {
 
         let external = Data("external edit\n".utf8)
         try external.write(to: url)
-        app.typeKey("w", modifierFlags: .command)
+        launchedApp.typeKey("w", modifierFlags: .command)
 
         let asked =
-            app.sheets.firstMatch.waitForExistence(timeout: 5)
-            || app.dialogs.firstMatch.waitForExistence(timeout: 1)
+            launchedApp.sheets.firstMatch.waitForExistence(timeout: 5)
+            || launchedApp.dialogs.firstMatch.waitForExistence(timeout: 1)
         if !asked {
             XCTAssertEqual(
                 try contents(of: url), external, "external edit was overwritten silently")
@@ -221,7 +235,7 @@ final class DocumentFileTests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: url.path)
         let editor = try open(url)
         append("attempt", to: editor)
-        app.typeKey("s", modifierFlags: .command)
+        launchedApp.typeKey("s", modifierFlags: .command)
 
         RunLoop.current.run(until: Date().addingTimeInterval(2))
         XCTAssertEqual(try contents(of: url), Data("protected\n".utf8))
