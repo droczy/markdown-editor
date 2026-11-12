@@ -2,8 +2,8 @@
 
 A native, security-focused Markdown editor. macOS (Apple Silicon) first, Linux later.
 
-> **Status:** early development. The platform-independent core is in progress;
-> there is no app to download yet.
+> **Status:** early development. The Rust core renders Markdown safely; the
+> macOS app is a skeleton. There is no release to download yet.
 
 ## Goals
 
@@ -20,6 +20,9 @@ A native, security-focused Markdown editor. macOS (Apple Silicon) first, Linux l
 | Path | Contents |
 |---|---|
 | `crates/core` | Rust core: Markdown parsing and sanitized HTML rendering |
+| `apps/macos` | macOS app (SwiftUI/AppKit); Xcode project defined in `project.yml` |
+| `apps/macos/Packages/MarkdownEditorKit` | Testable Swift logic of the macOS app |
+| `scripts` | Helper scripts, e.g. verification of the built app's security properties |
 | `fuzz` | Fuzz targets (requires nightly Rust and `cargo-fuzz`) |
 | `.github` | CI workflows and Dependabot configuration |
 
@@ -34,6 +37,22 @@ cargo clippy --workspace --all-targets
 cargo deny check                  # advisories, licenses, sources
 cargo llvm-cov --workspace        # coverage
 cd fuzz && cargo +nightly fuzz run render_html corpus/render_html seeds/render_html
+```
+
+### macOS app
+
+Requires Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+2.46.0. The minimum supported system is macOS 26 on Apple Silicon.
+
+```sh
+cd apps/macos
+xcodegen generate                 # creates MarkdownEditor.xcodeproj
+xcodebuild build -project MarkdownEditor.xcodeproj -scheme MarkdownEditor \
+  -configuration Release -derivedDataPath build
+xcodebuild test -project MarkdownEditor.xcodeproj -scheme MarkdownEditor \
+  -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+(cd Packages/MarkdownEditorKit && swift test)
+../../scripts/verify-macos-app.sh build/Build/Products/Release/MarkdownEditor.app
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and

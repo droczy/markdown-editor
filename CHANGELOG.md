@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dependency audit, short fuzzing run, PR title check. Nightly fuzzing and
   mutation testing. Dependabot with update cooldown.
 - Project documentation: README, security policy, contribution guide.
+- macOS app skeleton (macOS 26+, Apple Silicon): SwiftUI document app that
+  opens, edits and saves `.md` and `.markdown` files. The Xcode project is
+  generated from `apps/macos/project.yml` with XcodeGen.
+- Swift package `MarkdownEditorKit` with the document model and unit tests
+  (Swift Testing); UI test that creates and edits a document.
+- CI job building, verifying and testing the macOS app; Swift sources are
+  checked with `swift-format`.
+- `scripts/verify-macos-app.sh` checks the built app's signature, hardened
+  runtime, architecture, entitlements and linked libraries.
 
 ### Fixed
 
@@ -34,3 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cannot trigger network requests or read arbitrary local files.
 - Inputs larger than 10 MiB or nested deeper than 1000 levels are rejected,
   preventing a quadratic slowdown in HTML sanitization (denial of service).
+- The macOS app runs in the App Sandbox with access only to user-selected
+  files and no network access, uses the hardened runtime, links no
+  third-party dynamic libraries, and release builds do not allow debugger
+  attachment. CI fails if any of these properties change.
+- Documents with invalid UTF-8 are rejected instead of being altered, and a
+  byte order mark is preserved, so saving never changes untouched content.

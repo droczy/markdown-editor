@@ -35,6 +35,10 @@ Only the latest release receives security fixes during early development.
   restricted to crates.io and permissive licenses; GitHub Actions are pinned
   to commit SHAs; new dependency releases are adopted after a cooldown.
 
-Planned platform measures: App Sandbox and Hardened Runtime on macOS, a
-JavaScript-free preview with a strict Content Security Policy, and Flatpak
-sandboxing on Linux.
+- **macOS app.** Runs in the App Sandbox with access only to files the user
+  opens or saves and without network access; hardened runtime enabled; no
+  third-party dynamic libraries; release builds forbid debugger attachment.
+  CI verifies these properties on every change.
+
+Planned: a JavaScript-free preview with a strict Content Security Policy,
+and Flatpak sandboxing on Linux.
