@@ -13,3 +13,4 @@ lcov.info
 /apps/macos/App/*.entitlements
 .build/
 .swiftpm/
+/apps/macos/Packages/MarkdownEditorKit/Generated/

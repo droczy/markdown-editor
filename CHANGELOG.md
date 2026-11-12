@@ -25,8 +25,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (Swift Testing); UI test that creates and edits a document.
 - CI job building, verifying and testing the macOS app; Swift sources are
   checked with `swift-format`.
+- Bridge between the Rust core and the macOS app: crate `markdown-editor-ffi`
+  (UniFFI 0.32.2), `scripts/build-core-xcframework.sh` producing a static
+  XCFramework with generated Swift bindings, and the Swift API
+  `MarkdownRenderer` that renders off the calling actor and reports typed
+  errors.
 - `scripts/verify-macos-app.sh` checks the built app's signature, hardened
   runtime, architecture, entitlements and linked libraries.
+
+### Changed
+
+- Release builds unwind on panic instead of aborting, so that UniFFI can
+  turn an unexpected panic in the core into a Swift error instead of
+  crashing the app.
+- `RenderError` of the core is exhaustive, so that new error cases must be
+  handled in every consumer at compile time.
 
 ### Fixed
 
@@ -47,5 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files and no network access, uses the hardened runtime, links no
   third-party dynamic libraries, and release builds do not allow debugger
   attachment. CI fails if any of these properties change.
+- The Rust core is linked statically; the app still loads no third-party
+  dynamic libraries. The UniFFI binding generator is a separate build-time
+  tool and not part of the app.
 - Documents with invalid UTF-8 are rejected instead of being altered, and a
   byte order mark is preserved, so saving never changes untouched content.

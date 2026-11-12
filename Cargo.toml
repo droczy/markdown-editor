@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/core"]
+members = ["crates/core", "crates/ffi", "tools/uniffi-bindgen"]
 
 [workspace.package]
 edition = "2024"
@@ -23,4 +23,5 @@ panic = "warn"
 [profile.release]
 lto = true
 codegen-units = 1
-panic = "abort"
+# Keep unwinding (the default): UniFFI turns a Rust panic into a Swift error,
+# so an unexpected bug in the core cannot crash the app and lose unsaved text.

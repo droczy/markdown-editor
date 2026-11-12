@@ -7,6 +7,14 @@ all-features = true
 # Any known vulnerability or unmaintained/yanked crate fails the build.
 unmaintained = "all"
 yanked = "deny"
+# Each exception names the advisory, why it is acceptable and when to revisit.
+ignore = [
+    # basic-toml is unmaintained (not vulnerable). It is only used at build
+    # time by askama, a proc-macro of UniFFI's binding generator, to read
+    # template configuration; it never processes untrusted input and is not
+    # part of the app. Revisit on every UniFFI update.
+    { id = "RUSTSEC-2026-0374", reason = "build-time only via uniffi_bindgen/askama; not shipped" },
+]
 
 [licenses]
 # Only permissive licenses compatible with distributing an MIT-licensed app.
@@ -26,6 +34,8 @@ confidence-threshold = 0.9
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Path dependencies between our own unpublished crates are fine.
+allow-wildcard-paths = true
 
 [sources]
 # Crates may only come from crates.io; no git or alternative registries.
