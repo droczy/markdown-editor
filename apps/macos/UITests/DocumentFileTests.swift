@@ -162,8 +162,12 @@ final class DocumentFileTests: XCTestCase {
         launchedApp.typeKey("s", modifierFlags: .command)
 
         waitForContents(of: url, toEqual: Data("plain\ntext".utf8))
+        // No Markdown copy may appear next to it. Other entries are not
+        // checked: atomic saving briefly creates a temporary file in the same
+        // folder, which made an exact listing flaky on slower machines.
         let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
-        XCTAssertEqual(names, ["notes.txt"])
+        XCTAssertTrue(names.contains("notes.txt"))
+        XCTAssertFalse(names.contains { $0.hasSuffix(".md") }, "unexpected Markdown file: \(names)")
     }
 
     @MainActor
