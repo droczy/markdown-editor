@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mutation testing. Dependabot with update cooldown.
 - Project documentation: README, security policy, contribution guide.
 
+### Fixed
+
+- CI fuzzing jobs build for the glibc Linux target explicitly; the
+  prebuilt `cargo-fuzz` binary otherwise defaulted to musl, which is
+  incompatible with the sanitizers.
+
 ### Security
 
 - Raw HTML in documents is escaped instead of rendered.
