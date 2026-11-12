@@ -1,0 +1,5 @@
+---
+source: crates/core/tests/rendering.rs
+expression: "render(\"~~gone~~ www.example.com https://example.com/path?q=1 mail@example.com\")"
+---
+<p><del>gone</del> <a href="http://www.example.com" rel="noopener noreferrer">www.example.com</a> <a href="https://example.com/path?q=1" rel="noopener noreferrer">https://example.com/path?q=1</a> <a href="mailto:mail@example.com" rel="noopener noreferrer">mail@example.com</a></p>

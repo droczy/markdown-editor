@@ -1,0 +1,12 @@
+---
+source: crates/core/tests/rendering.rs
+expression: "render(\"- [ ] open\\n- [x] done\\n  - [X] nested done\")"
+---
+<ul>
+<li><input type="checkbox" disabled=""> open</li>
+<li><input type="checkbox" checked="" disabled=""> done
+<ul>
+<li><input type="checkbox" checked="" disabled=""> nested done</li>
+</ul>
+</li>
+</ul>

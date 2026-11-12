@@ -1,0 +1,5 @@
+---
+source: crates/core/tests/rendering.rs
+expression: "render(\"[link](https://example.com \\\"title\\\") [ref][r] <https://example.com> \\\n         ![image](images/a.png \\\"title\\\") \\\\*escaped\\\\* &amp; &copy; &#35;\\n\\n\\\n         [r]: other.md\")"
+---
+<p><a href="https://example.com" title="title" rel="noopener noreferrer">link</a> <a href="other.md" rel="noopener noreferrer">ref</a> <a href="https://example.com" rel="noopener noreferrer">https://example.com</a> <img src="images/a.png" alt="image" title="title"> *escaped* &amp; © #</p>

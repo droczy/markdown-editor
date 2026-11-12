@@ -1,0 +1,5 @@
+doc-valid-idents = ["CommonMark", "..", "GitHub"]
+# Tests are allowed to fail loudly.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true

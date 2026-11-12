@@ -1,0 +1,6 @@
+---
+source: crates/core/tests/rendering.rs
+expression: "render(\"Grüße 🌍 — 日本語 — مرحبا\\n\\n# Ünïcödé\")"
+---
+<p>Grüße 🌍 — 日本語 — مرحبا</p>
+<h1>Ünïcödé</h1>

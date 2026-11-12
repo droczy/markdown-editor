@@ -1,0 +1,35 @@
+---
+source: crates/core/tests/rendering.rs
+expression: "render(\"# Heading 1\\n## Heading 2\\n###### Heading 6\\n\\nSetext\\n===\\n\\n\\\n         A paragraph with *emphasis*, **strong**, `code` and a hard  \\nline break.\\n\\n\\\n         > A quote\\n> > nested\\n\\n---\\n\\n\\\n         1. one\\n2. two\\n\\n3) starts at three\\n\\n- bullet\\n  - nested\\n\\n\\\n         ```rust\\nfn main() {}\\n```\\n\\n    indented code\\n\")"
+---
+<h1>Heading 1</h1>
+<h2>Heading 2</h2>
+<h6>Heading 6</h6>
+<h1>Setext</h1>
+<p>A paragraph with <em>emphasis</em>, <strong>strong</strong>, <code>code</code> and a hard<br>
+line break.</p>
+<blockquote>
+<p>A quote</p>
+<blockquote>
+<p>nested</p>
+</blockquote>
+</blockquote>
+<hr>
+<ol>
+<li>one</li>
+<li>two</li>
+</ol>
+<ol start="3">
+<li>starts at three</li>
+</ol>
+<ul>
+<li>bullet
+<ul>
+<li>nested</li>
+</ul>
+</li>
+</ul>
+<pre lang="rust"><code>fn main() {}
+</code></pre>
+<pre><code>indented code
+</code></pre>

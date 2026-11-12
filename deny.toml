@@ -1,0 +1,33 @@
+# Supply-chain policy, enforced in CI by cargo-deny.
+
+[graph]
+all-features = true
+
+[advisories]
+# Any known vulnerability or unmaintained/yanked crate fails the build.
+unmaintained = "all"
+yanked = "deny"
+
+[licenses]
+# Only permissive licenses compatible with distributing an MIT-licensed app.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    # File-level copyleft. Allowed for unmodified dependencies only
+    # (cssparser, dtoa-short via ammonia): modifying them would require
+    # publishing the modified files.
+    "MPL-2.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+# Crates may only come from crates.io; no git or alternative registries.
+unknown-registry = "deny"
+unknown-git = "deny"
