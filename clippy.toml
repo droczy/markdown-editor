@@ -1,4 +1,4 @@
-doc-valid-idents = ["CommonMark", "..", "GitHub"]
+doc-valid-idents = ["CommonMark", "UniFFI", "..", "GitHub"]
 # Tests are allowed to fail loudly.
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true

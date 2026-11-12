@@ -1,0 +1,15 @@
+[package]
+name = "uniffi-bindgen"
+description = "Generates the Swift bindings for markdown-editor-ffi. Build-time tool only."
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+# Must match the uniffi version of markdown-editor-ffi exactly.
+uniffi = { version = "=0.32.2", features = ["cli"] }
+
+[lints]
+workspace = true

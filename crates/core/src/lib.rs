@@ -38,8 +38,9 @@ pub const MAX_INPUT_BYTES: usize = 10 * 1024 * 1024;
 pub const MAX_NESTING_DEPTH: usize = 1_000;
 
 /// Errors that can occur while rendering Markdown.
+/// Deliberately exhaustive: adding a variant must fail to compile in every
+/// consumer (e.g. the FFI crate) until it is handled there.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum RenderError {
     /// The input exceeds [`MAX_INPUT_BYTES`].
     InputTooLarge {

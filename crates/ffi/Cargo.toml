@@ -1,0 +1,22 @@
+[package]
+name = "markdown-editor-ffi"
+description = "Foreign-function interface of the markdown editor core for the platform apps (Swift via UniFFI)."
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+# staticlib: linked into the macOS app (no dynamic library at runtime).
+# lib: used by the Rust tests and by uniffi-bindgen in library mode.
+crate-type = ["staticlib", "lib"]
+
+[dependencies]
+markdown-editor-core = { path = "../core" }
+# Runtime support only; the binding generator lives in tools/uniffi-bindgen.
+uniffi = { version = "=0.32.2", default-features = false }
+
+[lints]
+workspace = true

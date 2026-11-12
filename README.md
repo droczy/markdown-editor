@@ -20,6 +20,8 @@ A native, security-focused Markdown editor. macOS (Apple Silicon) first, Linux l
 | Path | Contents |
 |---|---|
 | `crates/core` | Rust core: Markdown parsing and sanitized HTML rendering |
+| `crates/ffi` | Bridge from the core to the platform apps (UniFFI) |
+| `tools/uniffi-bindgen` | Build-time tool generating the Swift bindings |
 | `apps/macos` | macOS app (SwiftUI/AppKit); Xcode project defined in `project.yml` |
 | `apps/macos/Packages/MarkdownEditorKit` | Testable Swift logic of the macOS app |
 | `scripts` | Helper scripts, e.g. verification of the built app's security properties |
@@ -45,6 +47,7 @@ Requires Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 2.46.0. The minimum supported system is macOS 26 on Apple Silicon.
 
 ```sh
+scripts/build-core-xcframework.sh # Rust core + Swift bindings (run first)
 cd apps/macos
 xcodegen generate                 # creates MarkdownEditor.xcodeproj
 xcodebuild build -project MarkdownEditor.xcodeproj -scheme MarkdownEditor \
