@@ -129,7 +129,14 @@ jobs:
         working-directory: apps/macos
         run: |
           xcodebuild test -project MarkdownEditor.xcodeproj -scheme MarkdownEditor \
-            -destination 'platform=macOS,arch=arm64' -derivedDataPath build -quiet
+            -destination 'platform=macOS,arch=arm64' -derivedDataPath build -quiet \
+            -resultBundlePath build/UITests.xcresult
+      - name: Show UI test failures
+        if: failure()
+        working-directory: apps/macos
+        run: |
+          xcrun xcresulttool get test-results summary --path build/UITests.xcresult \
+            | python3 -c 'import json, sys; [print(f["testName"], "->", f["failureText"]) for f in json.load(sys.stdin).get("testFailures", [])]'
 
   fuzz:
     name: Fuzzing (short)
