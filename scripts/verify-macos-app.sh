@@ -23,12 +23,19 @@ if [[ "$archs" == "arm64" ]]; then pass "arm64 only"; else fail "unexpected arch
 
 # Entitlements are exactly the expected set: sandbox and user-selected files.
 # Anything else (network, debugger attachment, JIT, …) fails the check.
-expected=$'com.apple.security.app-sandbox=true\ncom.apple.security.files.user-selected.read-write=true'
-actual="$(codesign -d --entitlements - --xml "$app" 2>/dev/null \
-    | plutil -convert json -o - - \
-    | /usr/bin/python3 -c 'import json,sys; d=json.load(sys.stdin); print("\n".join(f"{k}={str(v).lower()}" for k,v in sorted(d.items())))')"
-if [[ "$actual" == "$expected" ]]; then pass "entitlements exactly sandbox + user-selected files"; else
-    fail "unexpected entitlements:"$'\n'"$actual"
+entitlements="$(mktemp)"
+trap 'rm -f "$entitlements"' EXIT
+codesign -d --entitlements - --xml "$app" > "$entitlements" 2>/dev/null || true
+entitlement() { /usr/libexec/PlistBuddy -c "Print :$1" "$entitlements" 2>/dev/null || true; }
+# PlistBuddy prints one "key = value" line per entry, including nested ones,
+# so any additional entitlement changes the count.
+count="$(/usr/libexec/PlistBuddy -c Print "$entitlements" 2>/dev/null | grep -c ' = ' || true)"
+if [[ "$count" == 2 &&
+    "$(entitlement com.apple.security.app-sandbox)" == true &&
+    "$(entitlement com.apple.security.files.user-selected.read-write)" == true ]]; then
+    pass "entitlements exactly sandbox + user-selected files"
+else
+    fail "unexpected entitlements:"$'\n'"$(/usr/libexec/PlistBuddy -c Print "$entitlements" 2>&1 || true)"
 fi
 
 # No third-party dynamic libraries are loaded.

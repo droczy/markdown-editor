@@ -10,6 +10,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Nightly toolchain for fuzzing, pinned for reproducible builds. Update
+  # together with rust-toolchain.toml; use a nightly at least 14 days old.
+  RUST_NIGHTLY: nightly-2026-10-29
 
 jobs:
   fuzz:
@@ -20,16 +23,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: rustup toolchain install nightly --profile minimal
+      - run: rustup toolchain install "$RUST_NIGHTLY" --profile minimal
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
-          tool: cargo-fuzz
+          tool: cargo-fuzz@0.13.2
       - working-directory: fuzz
         run: |
           mkdir -p corpus/render_html
-          cargo +nightly fuzz run --target x86_64-unknown-linux-gnu render_html \
+          cargo "+$RUST_NIGHTLY" fuzz run --target x86_64-unknown-linux-gnu render_html \
             corpus/render_html seeds/render_html -- \
-            -max_total_time=1800 -max_len=65536 -rss_limit_mb=4096
+            -max_total_time=1800 -max_len=65536 -rss_limit_mb=4096 -timeout=10
 
   mutants:
     name: Mutation testing
@@ -41,5 +44,5 @@ jobs:
           persist-credentials: false
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
-          tool: cargo-mutants
+          tool: cargo-mutants@27.1.0
       - run: cargo mutants --workspace --exclude uniffi-bindgen -- --release

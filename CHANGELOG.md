@@ -48,6 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CI hardening: every job has a timeout; fuzzing uses a pinned nightly
+  toolchain and fails on any input that takes longer than 10 seconds; the
+  CI tools cargo-deny, cargo-llvm-cov, cargo-fuzz and cargo-mutants are
+  pinned to exact versions. `scripts/verify-macos-app.sh` reads
+  entitlements with PlistBuddy instead of Python.
 - Release builds unwind on panic instead of aborting, so that UniFFI can
   turn an unexpected panic in the core into a Swift error instead of
   crashing the app.
