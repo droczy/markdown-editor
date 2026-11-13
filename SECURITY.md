@@ -9,6 +9,13 @@ GitHub: *Security → Report a vulnerability* in this repository. You will
 receive a response as soon as possible; fixes are released with a security
 advisory and a `Security` entry in the [changelog](CHANGELOG.md).
 
+## Security reviews
+
+Every pull request that touches a security-relevant area contains a short
+security review, and every development phase and release ends with a full
+review. The process, the [threat model](docs/security/threat-model.md), the
+checklist and the published reports are in [docs/security](docs/security/).
+
 ## Supported versions
 
 Only the latest release receives security fixes during early development.
