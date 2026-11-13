@@ -24,8 +24,9 @@ Only the latest release receives security fixes during early development.
   targets; images only to relative paths.
 - **Offline.** The app requests no network permission and never loads remote
   resources such as images, fonts or scripts.
-- **Resource limits.** Inputs above 10 MiB or nested deeper than 1000 levels
-  are rejected to prevent denial of service.
+- **Resource limits.** Inputs above 10 MiB, nested deeper than 1000 levels
+  or expanding to more than 2,000,000 syntax tree nodes are rejected to
+  prevent denial of service.
 - **Memory safety.** The core is written in safe Rust (`unsafe` is forbidden
   by a compiler lint).
 - **Verification.** Every change runs unit, snapshot, property-based and
