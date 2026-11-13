@@ -15,8 +15,13 @@ use common::invariants::assert_safe_html;
 use markdown_editor_core::{RenderError, render_html};
 
 const SMALL_STACK: usize = 512 * 1024;
-/// Generous bound: catches quadratic blow-ups, not small slowdowns.
-const TIME_LIMIT: Duration = Duration::from_secs(10);
+/// Generous bound: catches quadratic blow-ups, not small slowdowns. CI runs
+/// these tests in release mode; unoptimized builds get more time.
+const TIME_LIMIT: Duration = if cfg!(debug_assertions) {
+    Duration::from_secs(60)
+} else {
+    Duration::from_secs(10)
+};
 
 /// Renders on a small stack within the time limit. Rejections caused by
 /// the documented limits count as success; panics and timeouts do not.
@@ -125,6 +130,35 @@ fn prose_up_to_the_size_limit_is_accepted() {
     let input = section.repeat(markdown_editor_core::MAX_INPUT_BYTES / section.len());
     let html = render_html(&input).expect("prose is accepted");
     assert_safe_html(&html, "<prose>");
+}
+
+/// About 4 MiB of `unit` between `prefix` and `suffix`. With quadratic
+/// escaping, each of the following inputs took 80 to 290 seconds.
+fn fill(prefix: &str, unit: &str, suffix: &str) -> String {
+    format!("{prefix}{}{suffix}", unit.repeat((4 << 20) / unit.len()))
+}
+
+// Escaping text and attribute values must take linear time, also for long
+// runs full of characters that need escaping.
+
+#[test]
+fn long_code_block_with_many_ampersands() {
+    render_on_small_stack(fill("```\n", "a && b\n", "```\n"));
+}
+
+#[test]
+fn long_paragraph_with_many_latin1_symbols() {
+    render_on_small_stack(fill("", "\u{b0}\u{a0}", ""));
+}
+
+#[test]
+fn long_link_destination_with_many_ampersands() {
+    render_on_small_stack(fill("[a](<", "&", ">)"));
+}
+
+#[test]
+fn long_link_title_with_many_ampersands() {
+    render_on_small_stack(fill("[a](b \"", "&", "\")"));
 }
 
 #[test]

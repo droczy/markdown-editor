@@ -57,6 +57,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Rendering time now grows linearly with the input size, also for long
+  paragraphs, code blocks, link targets, titles and image descriptions
+  full of characters such as `&`, `°` or no-break spaces (denial of
+  service). Escaping such text previously took quadratic time: a 1.4 MB
+  code block with many `&&` needed about 9 seconds, larger inputs
+  minutes. Long runs of such text are now split into separate text nodes
+  before sanitization, which does not change the output, and attribute
+  values that would be excessively expensive to escape are removed; real
+  links, titles and image descriptions stay far below that limit. No
+  released version was affected.
 - Documents whose syntax tree would exceed 2,000,000 nodes are rejected
   (denial of service). Some Markdown constructs expand to far more nodes
   than they have bytes, so small crafted inputs could make rendering

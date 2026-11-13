@@ -30,6 +30,17 @@ const ALLOWED_ATTRIBUTES: &[(&str, &[&str])] = &[
 /// `file:`, …) is removed.
 const ALLOWED_URL_SCHEMES: &[&str] = &["http", "https", "mailto"];
 
+/// Longest run of text, in bytes, that may contain characters needing
+/// escaping before it is split off into its own text node (see
+/// [`separate_long_text_runs`]).
+const MAX_ESCAPED_RUN: usize = 256;
+
+/// Most work allowed for escaping one attribute value (see [`escape_cost`]);
+/// more expensive values are removed. Real URLs, titles and image
+/// descriptions stay far below this: a URL of 8 000 bytes with 100 `&` costs
+/// at most 800 000.
+const MAX_ATTRIBUTE_ESCAPE_COST: usize = 1 << 20;
+
 static SANITIZER: LazyLock<ammonia::Builder<'static>> = LazyLock::new(|| {
     let mut builder = ammonia::Builder::empty();
     builder
@@ -59,15 +70,121 @@ static SANITIZER: LazyLock<ammonia::Builder<'static>> = LazyLock::new(|| {
 
 /// Sanitizes HTML produced by comrak.
 pub(crate) fn sanitize(html: &str) -> String {
+    clean(&separate_long_text_runs(html, MAX_ESCAPED_RUN))
+}
+
+fn clean(html: &str) -> String {
     SANITIZER.clean(html).to_string()
 }
 
+/// Splits long runs of text that contain characters needing escaping by
+/// inserting empty comments, which the sanitizer removes again.
+///
+/// When the sanitized HTML is serialized, escaping a text node takes time
+/// proportional to the number of `&` and U+0080 to U+00BF characters (UTF-8
+/// lead byte `0xC2`, including the no-break space) times the length of the
+/// node: quadratic for long paragraphs or code blocks. After this function,
+/// such characters are at most `max_run` bytes plus one character or
+/// character reference away from the end of their node, so the total work is
+/// linear in the input size. The
+/// output does not change, because adjacent text nodes are serialized one
+/// after the other.
+///
+/// Expects HTML as produced by comrak: in text, `<` only starts a tag and
+/// `&` only starts a character reference; attribute values are quoted with
+/// `"`.
+fn separate_long_text_runs(html: &str, max_run: usize) -> Cow<'_, str> {
+    const SEPARATOR: &str = "<!---->";
+    let mut separated = String::new();
+    let mut copied = 0;
+    let mut in_tag = false;
+    let mut in_quotes = false;
+    let mut in_reference = false;
+    let mut run = 0;
+    let mut needs_escaping = false;
+
+    for (i, &byte) in html.as_bytes().iter().enumerate() {
+        if in_tag {
+            match byte {
+                b'"' => in_quotes = !in_quotes,
+                b'>' if !in_quotes => in_tag = false,
+                _ => {}
+            }
+            continue;
+        }
+        if in_reference {
+            match byte {
+                b'#' | b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z' => {
+                    run += 1;
+                    continue;
+                }
+                b';' => {
+                    in_reference = false;
+                    run += 1;
+                    continue;
+                }
+                _ => in_reference = false,
+            }
+        }
+        if byte == b'<' {
+            in_tag = true;
+            in_quotes = false;
+            run = 0;
+            needs_escaping = false;
+            continue;
+        }
+        // Outside tags and character references, a byte that is not a UTF-8
+        // continuation byte starts a character: a safe place to split.
+        let starts_character = byte & 0xC0 != 0x80;
+        if starts_character && needs_escaping && run >= max_run {
+            separated.push_str(&html[copied..i]);
+            separated.push_str(SEPARATOR);
+            copied = i;
+            run = 0;
+            needs_escaping = false;
+        }
+        match byte {
+            b'&' => {
+                in_reference = true;
+                needs_escaping = true;
+            }
+            0xC2 => needs_escaping = true,
+            _ => {}
+        }
+        run += 1;
+    }
+
+    if separated.is_empty() {
+        Cow::Borrowed(html)
+    } else {
+        separated.push_str(&html[copied..]);
+        Cow::Owned(separated)
+    }
+}
+
+/// Work needed to escape an attribute value when serializing it: for every
+/// `&` and every U+0080 to U+00BF character, the distance to the next `"`,
+/// `<` or `>`, or to the end of the value.
+fn escape_cost(value: &str) -> usize {
+    let mut cost = 0_usize;
+    let mut next_stop = value.len();
+    for (i, &byte) in value.as_bytes().iter().enumerate().rev() {
+        match byte {
+            b'"' | b'<' | b'>' => next_stop = i,
+            b'&' | 0xC2 => cost = cost.saturating_add(next_stop - i),
+            _ => {}
+        }
+    }
+    cost
+}
+
 fn filter_attribute<'u>(element: &str, attribute: &str, value: &'u str) -> Option<Cow<'u, str>> {
-    let allowed = match (element, attribute) {
-        ("img", "src") => is_local_relative_url(value),
-        ("pre", "lang") => is_plain_language_name(value),
-        _ => true,
-    };
+    let allowed = escape_cost(value) <= MAX_ATTRIBUTE_ESCAPE_COST
+        && match (element, attribute) {
+            ("img", "src") => is_local_relative_url(value),
+            ("pre", "lang") => is_plain_language_name(value),
+            _ => true,
+        };
     allowed.then_some(Cow::Borrowed(value))
 }
 
@@ -110,6 +227,7 @@ fn is_local_relative_url(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     #[test]
     fn local_relative_urls_are_allowed() {
@@ -194,6 +312,108 @@ mod tests {
             "<svg><foreignObject><math><iframe><!--</iframe><img src onerror=alert(1)>-->",
         ] {
             assert_eq!(sanitize(payload), "", "{payload}");
+        }
+    }
+
+    #[test]
+    fn text_without_characters_needing_escaping_is_not_copied() {
+        let html = "<p>plain text</p>\n<pre><code>more text\n</code></pre>\n";
+        assert!(matches!(separate_long_text_runs(html, 0), Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn long_text_runs_are_separated_between_characters() {
+        assert_eq!(
+            separate_long_text_runs("<p>&amp;&amp;&amp;</p>", 0),
+            "<p>&amp;<!---->&amp;<!---->&amp;</p>"
+        );
+        assert_eq!(
+            separate_long_text_runs("<p>\u{b0}\u{b0}\u{b0}</p>", 0),
+            "<p>\u{b0}<!---->\u{b0}<!---->\u{b0}</p>"
+        );
+        // Split at the first character after 8 bytes that contain an `&`.
+        assert_eq!(
+            separate_long_text_runs("<p>aaaa&amp;aaaa&amp;</p>", 8),
+            "<p>aaaa&amp;<!---->aaaa&amp;</p>"
+        );
+        assert_eq!(
+            separate_long_text_runs("<p>aaaaaaaaaa&amp;a</p>", 8),
+            "<p>aaaaaaaaaa&amp;<!---->a</p>"
+        );
+        // A character reference counts with all of its bytes, including `;`.
+        assert_eq!(
+            separate_long_text_runs("<p>&amp;a&amp;</p>", 5),
+            "<p>&amp;<!---->a&amp;</p>"
+        );
+    }
+
+    #[test]
+    fn unterminated_character_references_end_at_the_next_other_character() {
+        // comrak always terminates references; never split inside `&ab`.
+        assert_eq!(
+            separate_long_text_runs("<p>&ab c&amp;d</p>", 0),
+            "<p>&ab<!----> c&amp;<!---->d</p>"
+        );
+    }
+
+    #[test]
+    fn short_text_runs_and_tags_are_not_separated() {
+        let html = "<p>a &amp; b &lt; c</p><a href=\"?a&amp;b&amp;c\" title=\"x > &amp; y\">t</a>";
+        assert!(matches!(
+            separate_long_text_runs(html, 16),
+            Cow::Borrowed(_)
+        ));
+        // Attribute values are never split, even with the smallest limit.
+        let html = "<a href=\"?a&amp;b&amp;c\" title=\"x > &amp; y\">t</a>";
+        assert!(matches!(separate_long_text_runs(html, 0), Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn escape_cost_counts_distance_to_next_stop() {
+        assert_eq!(escape_cost("plain"), 0);
+        // `&` at 1 scans to `<` at 3, `&` at 5 scans to the end at 6.
+        assert_eq!(escape_cost("a&b<c&"), 3);
+        assert_eq!(escape_cost("&\"&>&"), 3);
+        // U+00B0 is encoded as 0xC2 0xB0.
+        assert_eq!(escape_cost("\u{b0}"), 2);
+        assert_eq!(escape_cost("\u{e9}"), 0);
+    }
+
+    #[test]
+    fn expensive_attribute_values_are_removed() {
+        let expensive = format!("<a href=\"?{}\">x</a>", "&amp;".repeat(2_000));
+        assert_eq!(
+            sanitize(&expensive),
+            r#"<a rel="noopener noreferrer">x</a>"#
+        );
+        let ordinary = r#"<a href="https://example.com/?a=1&amp;b=2&amp;c=3">x</a>"#;
+        assert_eq!(
+            sanitize(ordinary),
+            r#"<a href="https://example.com/?a=1&amp;b=2&amp;c=3" rel="noopener noreferrer">x</a>"#
+        );
+    }
+
+    /// Fragments that produce text needing escaping next to tags, character
+    /// references, code blocks, tables and attributes.
+    #[rustfmt::skip]
+    const FRAGMENTS: &[&str] = &[
+        "&", "&amp;", "&lt;", "&#38;", "\u{b0}", "\u{a0}", "\u{e9}", "\u{1f30d}", "<", ">", "\"",
+        "'", "a", " ", "\n", "\n\n", "*", "_", "`", "```\n", "    ", "[", "](", ")", "![",
+        "](a&b.png \"t&\")", "|", "|-|\n", "> ", "- ", "1. ", "# ", "\\", "<b>", "&&",
+        "https://a.example/?b&c", "www.a.example",
+    ];
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(2_000))]
+
+        /// The separators must never change the sanitized output.
+        #[test]
+        fn separating_text_runs_does_not_change_output(
+            parts in prop::collection::vec(prop::sample::select(FRAGMENTS), 0..120),
+            max_run in 0_usize..24,
+        ) {
+            let html = comrak::markdown_to_html(&parts.concat(), &crate::markdown_options());
+            prop_assert_eq!(clean(&separate_long_text_runs(&html, max_run)), clean(&html));
         }
     }
 }
