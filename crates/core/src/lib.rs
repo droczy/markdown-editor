@@ -37,6 +37,15 @@ pub const MAX_INPUT_BYTES: usize = 10 * 1024 * 1024;
 /// nested block quotes would take several seconds.
 pub const MAX_NESTING_DEPTH: usize = 1_000;
 
+/// Largest accepted syntax tree, in nodes (2 000 000).
+///
+/// Bounds memory use and rendering time independently of the input size,
+/// because some Markdown constructs expand to far more nodes than they have
+/// bytes. A node costs up to about 600 bytes across all rendering stages.
+/// Ordinary documents stay well below the limit: 10 MiB of prose produce
+/// about one million nodes.
+pub const MAX_NODES: usize = 2_000_000;
+
 /// Errors that can occur while rendering Markdown.
 /// Deliberately exhaustive: adding a variant must fail to compile in every
 /// consumer (e.g. the FFI crate) until it is handled there.
@@ -56,6 +65,11 @@ pub enum RenderError {
         /// The maximum allowed depth.
         limit: usize,
     },
+    /// The document's syntax tree would have more than [`MAX_NODES`] nodes.
+    TooManyNodes {
+        /// The maximum allowed number of nodes.
+        limit: usize,
+    },
 }
 
 impl fmt::Display for RenderError {
@@ -68,6 +82,10 @@ impl fmt::Display for RenderError {
             Self::NestingTooDeep { depth, limit } => write!(
                 f,
                 "document is nested too deeply to render (depth {depth}, limit is {limit})"
+            ),
+            Self::TooManyNodes { limit } => write!(
+                f,
+                "document is too complex to render (more than {limit} syntax tree nodes)"
             ),
         }
     }
@@ -84,8 +102,9 @@ impl std::error::Error for RenderError {}
 /// # Errors
 ///
 /// Returns [`RenderError::InputTooLarge`] if `markdown` is larger than
-/// [`MAX_INPUT_BYTES`], and [`RenderError::NestingTooDeep`] if it nests
-/// elements deeper than [`MAX_NESTING_DEPTH`].
+/// [`MAX_INPUT_BYTES`], [`RenderError::TooManyNodes`] if its syntax tree
+/// would exceed [`MAX_NODES`], and [`RenderError::NestingTooDeep`] if it
+/// nests elements deeper than [`MAX_NESTING_DEPTH`].
 ///
 /// # Panics
 ///
@@ -107,7 +126,8 @@ pub fn render_html(markdown: &str) -> Result<String, RenderError> {
     }
     let options = markdown_options();
     let arena = comrak::Arena::new();
-    let root = comrak::parse_document(&arena, markdown, &options);
+    let root = parse_within_limit(&arena, markdown, &options, MAX_NODES)
+        .ok_or(RenderError::TooManyNodes { limit: MAX_NODES })?;
 
     let depth = nesting_depth(root);
     if depth > MAX_NESTING_DEPTH {
@@ -122,6 +142,25 @@ pub fn render_html(markdown: &str) -> Result<String, RenderError> {
     comrak::format_html(root, &options, &mut unsanitized)
         .expect("writing into a String cannot fail");
     Ok(sanitize::sanitize(&unsanitized))
+}
+
+/// Parses `markdown`, or returns `None` if the syntax tree would have more
+/// than `max_nodes` nodes.
+///
+/// Parsing stops shortly after the limit is reached instead of completing
+/// first, so memory use stays bounded while parsing, too.
+fn parse_within_limit<'a>(
+    arena: &'a comrak::Arena<'a>,
+    markdown: &str,
+    options: &comrak::Options<'_>,
+    max_nodes: usize,
+) -> Option<comrak::Node<'a>> {
+    // The arena holds every node allocated so far, including nodes that are
+    // merged away later, so its size reflects the memory actually in use.
+    let too_many_nodes = || arena.len() > max_nodes;
+    let root = comrak::try_parse_document(arena, markdown, options, &too_many_nodes).ok()?;
+    // comrak asks only every few hundred steps; check the final size exactly.
+    (!too_many_nodes()).then_some(root)
 }
 
 /// Maximum depth of the syntax tree, computed iteratively so that deep trees
@@ -234,6 +273,51 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "document is nested too deeply to render (depth 5, limit is 3)"
+        );
+    }
+
+    #[test]
+    fn node_limit_is_exact() {
+        // document, then paragraph + text for each of the three paragraphs
+        let markdown = "a\n\nb\n\nc";
+        let options = markdown_options();
+        let arena = comrak::Arena::new();
+        assert!(parse_within_limit(&arena, markdown, &options, 7).is_some());
+        assert_eq!(arena.len(), 7);
+        let arena = comrak::Arena::new();
+        assert!(parse_within_limit(&arena, markdown, &options, 6).is_none());
+    }
+
+    #[test]
+    fn parsing_stops_soon_after_node_limit() {
+        // Short rows are filled up to the header width: 500 000 cells.
+        let markdown = "|a".repeat(500) + "|\n" + &"|-".repeat(500) + "|\n" + &"x\n".repeat(1_000);
+        let options = markdown_options();
+        let arena = comrak::Arena::new();
+        assert!(parse_within_limit(&arena, &markdown, &options, 1_000).is_none());
+        // comrak checks every 256 steps; one step adds at most a few nodes.
+        assert!(arena.len() < 5_000, "allocated {} nodes", arena.len());
+    }
+
+    #[test]
+    fn rejects_documents_above_node_limit() {
+        // Short rows are filled up to the header width, so a small document
+        // can exceed the limit.
+        let table = "|a".repeat(500) + "|\n" + &"|-".repeat(500) + "|\n" + &"x\n".repeat(1_000);
+        let markdown = format!("{table}\n").repeat(MAX_NODES / 500_000 + 1);
+        assert!(markdown.len() < 30_000);
+        assert_eq!(
+            render_html(&markdown),
+            Err(RenderError::TooManyNodes { limit: MAX_NODES })
+        );
+    }
+
+    #[test]
+    fn node_error_message_is_readable() {
+        let error = RenderError::TooManyNodes { limit: 10 };
+        assert_eq!(
+            error.to_string(),
+            "document is too complex to render (more than 10 syntax tree nodes)"
         );
     }
 

@@ -14,6 +14,9 @@ public enum MarkdownRenderer {
         /// The document nests elements deeper than
         /// ``MarkdownRenderer/maxNestingDepth``.
         case nestingTooDeep(depth: UInt64, limit: UInt64)
+        /// The document's syntax tree would have more than
+        /// ``MarkdownRenderer/maxNodes`` nodes.
+        case tooManyNodes(limit: UInt64)
         /// An unexpected error inside the core, e.g. a caught panic. The app
         /// keeps running; the document is not affected.
         case internalError(String)
@@ -29,6 +32,9 @@ public enum MarkdownRenderer {
             case .nestingTooDeep(let depth, let limit):
                 return "The document is nested too deeply for the preview "
                     + "(depth \(depth), limit \(limit))."
+            case .tooManyNodes(let limit):
+                return "The document is too complex for the preview "
+                    + "(more than \(limit.formatted()) elements)."
             case .internalError(let message):
                 return "The preview could not be rendered: \(message)"
             }
@@ -40,6 +46,9 @@ public enum MarkdownRenderer {
 
     /// Deepest nesting of Markdown elements that can be rendered.
     public static let maxNestingDepth: UInt64 = MarkdownEditorCore.maxNestingDepth()
+
+    /// Largest syntax tree, in nodes, that can be rendered.
+    public static let maxNodes: UInt64 = MarkdownEditorCore.maxNodes()
 
     /// Renders `markdown` off the calling actor, so that large documents
     /// never block the user interface.
@@ -58,6 +67,8 @@ public enum MarkdownRenderer {
                 throw .inputTooLarge(size: size, limit: limit)
             case .NestingTooDeep(let depth, let limit):
                 throw .nestingTooDeep(depth: depth, limit: limit)
+            case .TooManyNodes(let limit):
+                throw .tooManyNodes(limit: limit)
             }
         } catch {
             throw .internalError(error.localizedDescription)

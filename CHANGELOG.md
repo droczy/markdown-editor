@@ -57,6 +57,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Documents whose syntax tree would exceed 2,000,000 nodes are rejected
+  (denial of service). Some Markdown constructs expand to far more nodes
+  than they have bytes, so small crafted inputs could make rendering
+  exhaust memory. Parsing now stops as soon as the limit is reached, which
+  bounds memory use and rendering time independently of the input size:
+  10 MiB documents previously needed up to 4 GB of memory, now at most
+  about 1.2 GB. Typical documents up to the size limit, such as 10 MiB of
+  prose, are not affected. The limit is available to the app as
+  `MarkdownRenderer.maxNodes`, and exceeding it is reported as a typed
+  error. No released version was affected.
 - Updated ammonia from 4.2.4 to 4.2.5, which fixes RUSTSEC-2026-0533
   (GHSA-934p-vp7m-gx3c, mutation XSS by mixing MathML and SVG). Not
   exploitable here: the sanitizer allows no MathML, SVG or raw-text

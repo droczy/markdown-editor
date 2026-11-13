@@ -23,6 +23,11 @@ pub enum RenderError {
         /// Maximum nesting depth.
         limit: u64,
     },
+    /// The document's syntax tree would have more than [`max_nodes`] nodes.
+    TooManyNodes {
+        /// Maximum number of nodes.
+        limit: u64,
+    },
 }
 
 impl std::fmt::Display for RenderError {
@@ -58,6 +63,13 @@ pub fn max_nesting_depth() -> u64 {
     to_u64(markdown_editor_core::MAX_NESTING_DEPTH)
 }
 
+/// Largest accepted syntax tree, in nodes.
+#[uniffi::export]
+#[must_use]
+pub fn max_nodes() -> u64 {
+    to_u64(markdown_editor_core::MAX_NODES)
+}
+
 impl From<markdown_editor_core::RenderError> for RenderError {
     fn from(error: markdown_editor_core::RenderError) -> Self {
         match error {
@@ -73,6 +85,9 @@ impl From<markdown_editor_core::RenderError> for RenderError {
                     limit: to_u64(limit),
                 }
             }
+            markdown_editor_core::RenderError::TooManyNodes { limit } => Self::TooManyNodes {
+                limit: to_u64(limit),
+            },
         }
     }
 }
@@ -92,6 +107,9 @@ fn core_error(error: &RenderError) -> markdown_editor_core::RenderError {
                 limit: to_usize(limit),
             }
         }
+        RenderError::TooManyNodes { limit } => markdown_editor_core::RenderError::TooManyNodes {
+            limit: to_usize(limit),
+        },
     }
 }
 
@@ -141,9 +159,21 @@ mod tests {
     }
 
     #[test]
+    fn reports_too_many_nodes() {
+        // Short rows are filled up to the header width.
+        let table = "|a".repeat(500) + "|\n" + &"|-".repeat(500) + "|\n" + &"x\n".repeat(1_000);
+        let markdown = format!("{table}\n").repeat(10);
+        assert_eq!(
+            render_html(&markdown),
+            Err(RenderError::TooManyNodes { limit: max_nodes() })
+        );
+    }
+
+    #[test]
     fn limits_match_the_core() {
         assert_eq!(max_input_bytes(), 10 * 1024 * 1024);
         assert_eq!(max_nesting_depth(), 1_000);
+        assert_eq!(max_nodes(), 2_000_000);
     }
 
     #[test]
@@ -160,6 +190,11 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "document is too large to render (20 bytes, limit is 10 bytes)"
+        );
+        let error = RenderError::TooManyNodes { limit: 10 };
+        assert_eq!(
+            error.to_string(),
+            "document is too complex to render (more than 10 syntax tree nodes)"
         );
     }
 

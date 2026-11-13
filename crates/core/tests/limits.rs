@@ -30,7 +30,7 @@ fn render_on_small_stack(input: String) {
             assert!(elapsed < TIME_LIMIT, "took {elapsed:?}");
             match result {
                 Ok(html) => assert_safe_html(&html, "<large input>"),
-                Err(RenderError::NestingTooDeep { .. }) => {}
+                Err(RenderError::NestingTooDeep { .. } | RenderError::TooManyNodes { .. }) => {}
                 Err(other) => panic!("unexpected error: {other}"),
             }
         })
@@ -93,6 +93,38 @@ fn wide_table() {
     let separator = "|-".repeat(10_000) + "|\n";
     let row = "|x".repeat(10_000) + "|\n";
     render_on_small_stack(header + &separator + &row.repeat(10));
+}
+
+/// Short rows are filled up to the header width, so a small document can
+/// exceed the node limit.
+#[test]
+fn many_tables_with_short_rows_are_rejected_quickly() {
+    let table = "|a".repeat(500) + "|\n" + &"|-".repeat(500) + "|\n" + &"x\n".repeat(1_000) + "\n";
+    let input = table.repeat(1_000);
+    let start = Instant::now();
+    assert_eq!(
+        render_html(&input),
+        Err(RenderError::TooManyNodes {
+            limit: markdown_editor_core::MAX_NODES
+        })
+    );
+    assert!(start.elapsed() < TIME_LIMIT);
+}
+
+/// The node limit must not reject realistic documents up to the size limit.
+#[test]
+fn prose_up_to_the_size_limit_is_accepted() {
+    let paragraph = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do *eiusmod*\n\
+        tempor incididunt ut labore et dolore magna aliqua: see [the docs](https://example.com)\n\
+        or `some_code()`. Contact me@example.com or www.example.com; 5 > 3 & 2 < 4.\n\
+        Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip.\n\n";
+    let section = format!(
+        "## Chapter\n\n{}- a list item with **bold** text\n- another item\n\n",
+        paragraph.repeat(4)
+    );
+    let input = section.repeat(markdown_editor_core::MAX_INPUT_BYTES / section.len());
+    let html = render_html(&input).expect("prose is accepted");
+    assert_safe_html(&html, "<prose>");
 }
 
 #[test]
