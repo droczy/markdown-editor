@@ -11,6 +11,8 @@ security considerations apply to every change.
 - Every change needs tests. Bugs get a regression test first.
 - Update the `[Unreleased]` section of [CHANGELOG.md](CHANGELOG.md).
 - Do not add dependencies without a clear reason stated in the PR.
+- Fill in the *Security* section of the pull request template: a short
+  security review as described in [docs/security](docs/security/README.md).
 - All code, comments and documentation are written in English.
 
 ## Commit messages and PR titles

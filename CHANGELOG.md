@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   changes and read-only files.
 - `scripts/verify-macos-app.sh` checks the built app's signature, hardened
   runtime, architecture, entitlements and linked libraries.
+- Security review process in `docs/security`: short reviews for
+  security-relevant pull requests, full reviews per phase and release,
+  threat model, checklist based on OWASP ASVS 5.0, report template,
+  severity deadlines and disclosure rules. A pull request template asks
+  for the short review.
 
 ### Changed
 
