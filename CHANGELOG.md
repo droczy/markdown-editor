@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   threat model, checklist based on OWASP ASVS 5.0, report template,
   severity deadlines and disclosure rules. A pull request template asks
   for the short review.
+- First full security review (phase 2): report in
+  `docs/security/reviews/2026-11-phase-2.md`.
+- The README explains autosave and document versions.
 
 ### Changed
 
