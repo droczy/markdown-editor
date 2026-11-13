@@ -10,7 +10,10 @@ produces comparable results.
 | [Checklist](checklist.md) | Requirements checked in every full review, based on OWASP ASVS 5.0 |
 | [Report template](report-template.md) | Structure of every full review report |
 
-Completed reports are published in `docs/security/reviews/`.
+Completed reports are published in `docs/security/reviews/`:
+
+- [2026-11: phase 2](reviews/2026-11-phase-2.md): Rust core, FFI and the
+  macOS app skeleton.
 
 ## When reviews happen
 
