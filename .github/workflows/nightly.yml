@@ -37,7 +37,9 @@ jobs:
   mutants:
     name: Mutation testing
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # About 30 seconds per mutant; 95 mutants as of 2026-11. Raise the limit
+    # when the number of mutants grows.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
