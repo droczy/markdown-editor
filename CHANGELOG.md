@@ -57,6 +57,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Updated ammonia from 4.2.4 to 4.2.5, which fixes RUSTSEC-2026-0533
+  (GHSA-934p-vp7m-gx3c, mutation XSS by mixing MathML and SVG). Not
+  exploitable here: the sanitizer allows no MathML, SVG or raw-text
+  elements, and raw HTML is escaped before sanitization. A regression test
+  checks that the sanitizer alone removes the published payloads.
 - Raw HTML in documents is escaped instead of rendered.
 - Allowlist sanitization of all generated HTML; links restricted to `http`,
   `https`, `mailto` and relative targets.
