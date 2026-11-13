@@ -182,4 +182,18 @@ mod tests {
     fn non_checkbox_input_loses_type() {
         assert_eq!(sanitize(r#"<input type="text">"#), r#"<input disabled="">"#);
     }
+
+    /// RUSTSEC-2026-0533 (mutation XSS by mixing MathML and SVG). The
+    /// allowlist contains no MathML, SVG or raw-text elements, so this layer
+    /// alone removes the payloads completely, without relying on comrak.
+    #[test]
+    fn mathml_svg_mutation_xss_is_removed() {
+        for payload in [
+            "<math><mi><math><iframe><!--</iframe><img src onerror=alert(1)>-->",
+            "<math><mi><svg><iframe><!--</iframe><img src onerror=alert(1)>-->",
+            "<svg><foreignObject><math><iframe><!--</iframe><img src onerror=alert(1)>-->",
+        ] {
+            assert_eq!(sanitize(payload), "", "{payload}");
+        }
+    }
 }
