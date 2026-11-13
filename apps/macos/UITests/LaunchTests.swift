@@ -10,6 +10,7 @@ final class LaunchTests: XCTestCase {
     @MainActor
     func testNewDocumentCanBeEdited() {
         let app = XCUIApplication()
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         // DocumentGroup may show an open panel at launch; dismiss it and

@@ -30,6 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   XCFramework with generated Swift bindings, and the Swift API
   `MarkdownRenderer` that renders off the calling actor and reports typed
   errors.
+- Robust document handling in the macOS app: files up to 50 MiB, UTF-8
+  only; opened plain-text files keep their type and name; autosave in place
+  with versions (system default); clear error messages with a reason and a
+  suggested fix when a file cannot be opened. Plain text is offered under
+  "Open With" without becoming the default app for `.txt`.
+- UI tests with real files: edit and save, autosave on close, Windows line
+  endings, plain-text files, invalid UTF-8, oversized files, external
+  changes and read-only files.
 - `scripts/verify-macos-app.sh` checks the built app's signature, hardened
   runtime, architecture, entitlements and linked libraries.
 
@@ -65,3 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tool and not part of the app.
 - Documents with invalid UTF-8 are rejected instead of being altered, and a
   byte order mark is preserved, so saving never changes untouched content.
+  Line endings and a missing final newline are preserved as well.
+- Files larger than 50 MiB are rejected before they are decoded.
+- Changes made to a file by another application are never overwritten
+  silently: the system asks how to resolve the conflict.
+- Read-only files are not modified.
