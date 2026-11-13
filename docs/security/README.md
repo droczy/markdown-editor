@@ -62,8 +62,10 @@ Every full review follows these eight steps in order.
 5. **Attack attempts:** Attack every trust boundary manually and with
    scripts. Typical attacks are injection payloads, resource exhaustion,
    malformed files and confusing input. Record each input and its result.
-6. **Findings:** Record every weakness as a finding with an ID, a CWE, a
-   CVSS 4.0 vector and score, and a severity.
+6. **Findings:** Record every exploitable weakness as a finding with an ID,
+   a CWE, a CVSS 4.0 vector and score, and a severity. A failed checklist
+   item without an attack path, such as a missing CI timeout, is hardening.
+   It is fixed and documented in the checklist results instead.
 7. **Fixes:** Fix every finding with a regression test within its
    deadline, or accept it as a residual risk with a justification.
 8. **Report:** Write the report from the
