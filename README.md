@@ -15,6 +15,14 @@ A native, security-focused Markdown editor. macOS (Apple Silicon) first, Linux l
 - CommonMark and GitHub Flavored Markdown; LaTeX math, Mermaid diagrams and
   PDF export are planned.
 
+## Saving and document versions
+
+The macOS app saves like other document-based Mac apps: changes are saved
+automatically to the original file, and macOS keeps earlier versions of the
+document (*File > Revert To > Browse All Versions*). macOS stores these
+versions outside the document, so text deleted from a document can remain
+in an earlier version. An option to turn off or delete versions is planned.
+
 ## Repository layout
 
 | Path | Contents |
