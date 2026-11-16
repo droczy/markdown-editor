@@ -303,6 +303,35 @@ struct PreviewCoordinatorTests {
                 as? Int == 1, "the checkbox changed by itself")
     }
 
+    @Test("A click anywhere on a task checkbox reaches its link")
+    func taskCheckboxHitArea() async throws {
+        let (webView, coordinator, _) = makePreview()
+        let page = try await MarkdownRenderer.renderPage(
+            "- [ ] first\n- [x] second", taskToken: "test-token")
+        coordinator.show(
+            page.replacingOccurrences(of: "<main>\n", with: "<main>\n<p id=\"tasks\">t</p>"))
+        await webView.waitUntilLoaded(containing: "tasks")
+
+        // For each task: the link's box (also what accessibility reports)
+        // covers the visible checkbox, and its centre and corners hit the
+        // link, not the text next to it.
+        let results = await webView.evaluate(
+            """
+            return [...document.querySelectorAll('a[role=checkbox]')].map(link => {
+              const box = link.querySelector('input').getBoundingClientRect();
+              const area = link.getBoundingClientRect();
+              const covers = area.left <= box.left && area.right >= box.right
+                && area.top <= box.top && area.bottom >= box.bottom;
+              const points = [[box.left + box.width / 2, box.top + box.height / 2],
+                [box.left + 1, box.top + 1], [box.right - 1, box.top + 1],
+                [box.left + 1, box.bottom - 1], [box.right - 1, box.bottom - 1]];
+              const hits = points.every(([x, y]) => document.elementFromPoint(x, y) === link);
+              return `covers=${covers} hits=${hits}`;
+            })
+            """)
+        #expect(results as? [String] == ["covers=true hits=true", "covers=true hits=true"])
+    }
+
     @Test("Clicked links are handed to the app and never navigate")
     func linksAreIntercepted() async throws {
         let (webView, coordinator, links) = makePreview()
