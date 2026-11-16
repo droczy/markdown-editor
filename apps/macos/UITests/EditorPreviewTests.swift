@@ -175,7 +175,9 @@ final class EditorPreviewTests: XCTestCase {
 
     func testClickingATaskCheckboxEditsTheText() {
         let checkbox = preview.checkBoxes["Task"].firstMatch
-        type("- [ ] Buy milk\n- [x] Done", thenWaitFor: checkbox)
+        // Wait until the preview shows the whole text: a click on an older
+        // page is ignored on purpose (its task index may be outdated).
+        type("- [ ] Buy milk\n- [x] Done", thenWaitFor: preview.checkBoxes.element(boundBy: 1))
 
         checkbox.click()
         XCTAssertTrue(
