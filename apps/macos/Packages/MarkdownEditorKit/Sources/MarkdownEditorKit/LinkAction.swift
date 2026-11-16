@@ -7,6 +7,9 @@ public enum PreviewLinkAction: Equatable, Sendable {
     case openInBrowser(host: String)
     /// Open the default email app, after the user confirmed it.
     case openInEmailApp(recipients: String)
+    /// A click on a task checkbox: check or uncheck the task with `index`,
+    /// if `token` is the one of the shown page.
+    case toggleTask(token: String, index: Int)
     /// A relative link to another file or a heading: not supported yet.
     case unsupported
     /// Any other kind of address: never opened.
@@ -21,6 +24,8 @@ public enum PreviewLinkAction: Equatable, Sendable {
             self = .openInBrowser(host: host)
         case .openInEmailApp(let recipients):
             self = .openInEmailApp(recipients: recipients)
+        case .toggleTask(let token, let index):
+            self = Int(exactly: index).map { .toggleTask(token: token, index: $0) } ?? .blocked
         case .unsupported:
             self = .unsupported
         case .blocked:

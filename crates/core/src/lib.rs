@@ -25,11 +25,13 @@
 mod link;
 mod page;
 mod sanitize;
+mod task;
 
 pub use link::{LinkAction, MAX_LINK_BYTES, link_action};
 pub use page::{
     PAGE_BASE_URL, PAGE_CONTENT_SECURITY_POLICY, PAGE_STYLESHEET, PAGE_STYLESHEET_HASH, render_page,
 };
+pub use task::{MAX_TASK_TOKEN_BYTES, TaskToggle, is_valid_task_token, toggle_task};
 
 use std::fmt;
 

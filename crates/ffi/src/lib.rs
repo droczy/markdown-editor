@@ -49,15 +49,42 @@ pub fn render_html(markdown: &str) -> Result<String, RenderError> {
     markdown_editor_core::render_html(markdown).map_err(RenderError::from)
 }
 
-/// Renders untrusted Markdown to a complete HTML page for the preview. See
+/// Renders untrusted Markdown to a complete HTML page for the preview; with
+/// a `task_token`, task checkboxes become links that toggle them. See
 /// [`markdown_editor_core::render_page`].
 ///
 /// # Errors
 ///
 /// Returns [`RenderError`] if the document exceeds a resource limit.
 #[uniffi::export]
-pub fn render_page(markdown: &str) -> Result<String, RenderError> {
-    markdown_editor_core::render_page(markdown).map_err(RenderError::from)
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "UniFFI passes optional strings by value"
+)]
+pub fn render_page(markdown: &str, task_token: Option<String>) -> Result<String, RenderError> {
+    markdown_editor_core::render_page(markdown, task_token.as_deref()).map_err(RenderError::from)
+}
+
+/// An edit that checks or unchecks one task. See
+/// [`markdown_editor_core::TaskToggle`].
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct TaskToggle {
+    /// Byte offset (UTF-8) of the character between the brackets.
+    pub offset: u64,
+    /// The replacement character: `x` or a space.
+    pub replacement: String,
+}
+
+/// The edit that checks or unchecks the task with `index`, or `None`. See
+/// [`markdown_editor_core::toggle_task`].
+#[uniffi::export]
+#[must_use]
+pub fn toggle_task(markdown: &str, index: u64) -> Option<TaskToggle> {
+    let toggle = markdown_editor_core::toggle_task(markdown, usize::try_from(index).ok()?)?;
+    Some(TaskToggle {
+        offset: to_u64(toggle.offset),
+        replacement: toggle.replacement.to_string(),
+    })
 }
 
 /// Base URL the preview page must be loaded with.
@@ -102,6 +129,14 @@ pub enum LinkAction {
         /// Recipients as written in the link (may be empty).
         recipients: String,
     },
+    /// Check or uncheck the task with `index`, if `token` belongs to the
+    /// shown page.
+    ToggleTask {
+        /// Token of the page the checkbox belongs to.
+        token: String,
+        /// Index of the task in document order.
+        index: u64,
+    },
     /// A relative link to another file or a position in the document.
     Unsupported,
     /// Never opened.
@@ -120,6 +155,10 @@ pub fn link_action(url: &str) -> LinkAction {
         markdown_editor_core::LinkAction::OpenInEmailApp { recipients } => {
             LinkAction::OpenInEmailApp { recipients }
         }
+        markdown_editor_core::LinkAction::ToggleTask { token, index } => LinkAction::ToggleTask {
+            token,
+            index: to_u64(index),
+        },
         markdown_editor_core::LinkAction::Unsupported => LinkAction::Unsupported,
         markdown_editor_core::LinkAction::Blocked => LinkAction::Blocked,
     }
@@ -214,12 +253,16 @@ mod tests {
     fn renders_pages_like_the_core() {
         let markdown = "# Title";
         assert_eq!(
-            render_page(markdown),
-            Ok(markdown_editor_core::render_page(markdown).unwrap())
+            render_page(markdown, None),
+            Ok(markdown_editor_core::render_page(markdown, None).unwrap())
+        );
+        assert_eq!(
+            render_page("- [ ] t", Some("k".into())),
+            Ok(markdown_editor_core::render_page("- [ ] t", Some("k")).unwrap())
         );
         let markdown = "a".repeat(markdown_editor_core::MAX_INPUT_BYTES + 1);
         assert!(matches!(
-            render_page(&markdown),
+            render_page(&markdown, None),
             Err(RenderError::InputTooLarge { .. })
         ));
     }
@@ -257,6 +300,33 @@ mod tests {
             LinkAction::Unsupported
         );
         assert_eq!(link_action("file:///"), LinkAction::Blocked);
+        assert_eq!(
+            link_action("markdown-preview://task/k/3"),
+            LinkAction::ToggleTask {
+                token: "k".into(),
+                index: 3
+            }
+        );
+    }
+
+    #[test]
+    fn task_toggles_match_the_core() {
+        assert_eq!(
+            toggle_task("a\n\n- [ ] ü", 0),
+            Some(TaskToggle {
+                offset: 6,
+                replacement: "x".into()
+            })
+        );
+        assert_eq!(
+            toggle_task("- [X] done", 0),
+            Some(TaskToggle {
+                offset: 3,
+                replacement: " ".into()
+            })
+        );
+        assert_eq!(toggle_task("- [ ] a", 1), None);
+        assert_eq!(toggle_task("- [ ] a", u64::MAX), None);
     }
 
     #[test]

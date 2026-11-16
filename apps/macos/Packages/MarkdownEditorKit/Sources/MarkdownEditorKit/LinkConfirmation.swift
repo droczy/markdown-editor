@@ -16,12 +16,12 @@ public enum LinkConfirmation {
     ) {
         guard let window else { return }
         let action = PreviewLinkAction(resolvedURL: url)
-        let alert = makeAlert(for: action, url: url)
+        guard let alert = makeAlert(for: action, url: url) else { return }
         let opens: Bool
         switch action {
         case .openInBrowser, .openInEmailApp:
             opens = true
-        case .unsupported, .blocked:
+        case .toggleTask, .unsupported, .blocked:
             opens = false
         }
         var escapeMonitor: Any?
@@ -50,10 +50,13 @@ public enum LinkConfirmation {
     private static let escapeKeyCode: UInt16 = 53
 
     /// The dialog for `action`. For links that may be opened, the first
-    /// button is "Cancel" (default) and the second "Open".
-    static func makeAlert(for action: PreviewLinkAction, url: URL) -> NSAlert {
+    /// button is "Cancel" (default) and the second "Open". Task checkboxes
+    /// get no dialog (`nil`); the editor handles them.
+    static func makeAlert(for action: PreviewLinkAction, url: URL) -> NSAlert? {
         let alert = NSAlert()
         switch action {
+        case .toggleTask:
+            return nil
         case .openInBrowser(let host):
             alert.messageText = "Open “\(host)” in your browser?"
             alert.informativeText = "The link leads to this address:\n\n\(url.absoluteString)"

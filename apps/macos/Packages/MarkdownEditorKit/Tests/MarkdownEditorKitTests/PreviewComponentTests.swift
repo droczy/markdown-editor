@@ -39,6 +39,8 @@ struct PageAndLinkTests {
             ("markdown-preview://document/other.md", .unsupported),
             ("file:///etc/passwd", .blocked),
             ("javascript:alert(1)", .blocked),
+            ("markdown-preview://task/k-1/2", .toggleTask(token: "k-1", index: 2)),
+            ("markdown-preview://task/k/01", .unsupported),
         ])
     func linkActions(url: String, expected: PreviewLinkAction) throws {
         #expect(PreviewLinkAction(resolvedURL: try #require(URL(string: url))) == expected)
@@ -96,9 +98,9 @@ struct LinkConfirmationTests {
     let url = URL(string: "https://example.com/path?q=1") ?? URL(filePath: "/")
 
     @Test("Web links ask first; Open has no key equivalent")
-    func webLink() {
-        let alert = LinkConfirmation.makeAlert(
-            for: .openInBrowser(host: "example.com"), url: url)
+    func webLink() throws {
+        let alert = try #require(
+            LinkConfirmation.makeAlert(for: .openInBrowser(host: "example.com"), url: url))
         #expect(alert.messageText.contains("“example.com”"))
         #expect(alert.informativeText.contains("https://example.com/path?q=1"))
         #expect(alert.buttons.map(\.title) == ["Cancel", "Open"])
@@ -108,14 +110,15 @@ struct LinkConfirmationTests {
     @Test("Email links ask first; Open has no key equivalent")
     func emailLink() throws {
         let mail = try #require(URL(string: "mailto:a@example.com"))
-        let alert = LinkConfirmation.makeAlert(
-            for: .openInEmailApp(recipients: "a@example.com"), url: mail)
+        let alert = try #require(
+            LinkConfirmation.makeAlert(for: .openInEmailApp(recipients: "a@example.com"), url: mail)
+        )
         #expect(alert.messageText.contains("“a@example.com”"))
         #expect(alert.buttons.map(\.title) == ["Cancel", "Open"])
         #expect(alert.buttons[1].keyEquivalent.isEmpty)
         let noRecipient = LinkConfirmation.makeAlert(
             for: .openInEmailApp(recipients: ""), url: mail)
-        #expect(noRecipient.messageText == "Write an email?")
+        #expect(noRecipient?.messageText == "Write an email?")
     }
 
     @Test(
@@ -123,7 +126,12 @@ struct LinkConfirmationTests {
         arguments: [PreviewLinkAction.unsupported, .blocked])
     func explanationOnly(action: PreviewLinkAction) {
         let alert = LinkConfirmation.makeAlert(for: action, url: url)
-        #expect(alert.buttons.map(\.title) == ["OK"])
+        #expect(alert?.buttons.map(\.title) == ["OK"])
+    }
+
+    @Test("Task checkboxes get no dialog")
+    func taskToggleHasNoDialog() {
+        #expect(LinkConfirmation.makeAlert(for: .toggleTask(token: "t", index: 0), url: url) == nil)
     }
 }
 

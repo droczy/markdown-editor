@@ -62,6 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "Privacy and Permissions" window, shown once at the first launch and
   later from the Help menu: which permissions the app has, why, and what it
   never does. macOS does not ask the user for these permissions itself.
+- Task list checkboxes in the preview can be clicked to check or uncheck
+  the task: exactly the character between the brackets changes in the
+  editor, and ⌘Z undoes it. Core function `toggle_task` finds the
+  character; `render_page` turns checkboxes into task links when given a
+  token.
 - Core functions `render_page`, which wraps the sanitized HTML in the
   preview page (Content Security Policy and stylesheet), and `link_action`,
   which decides what a click on a link does after the web engine resolved
@@ -122,6 +127,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as `java%09script:` can never act as a scheme.
 - Networking crates (HTTP clients, TLS, async I/O runtimes) are banned in
   `deny.toml`.
+- Clicks on task checkboxes are applied only if they carry the random token
+  of the page that is shown and the text has not changed since that page
+  was rendered. Protocol-relative links (`//host/path`) are removed from
+  documents, because in the preview they would lead to its internal
+  addresses.
 - Rendering time now grows linearly with the input size, also for long
   paragraphs, code blocks, link targets, titles and image descriptions
   full of characters such as `&`, `°` or no-break spaces (denial of

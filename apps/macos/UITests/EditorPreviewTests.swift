@@ -173,6 +173,29 @@ final class EditorPreviewTests: XCTestCase {
         XCTAssertTrue(unexpected.isEmpty, "unexpected menu items: \(unexpected) of \(items)")
     }
 
+    func testClickingATaskCheckboxEditsTheText() {
+        let checkbox = preview.checkBoxes["Task"].firstMatch
+        // Wait until the preview shows the whole text: a click on an older
+        // page is ignored on purpose (its task index may be outdated).
+        type("- [ ] Buy milk\n- [x] Done", thenWaitFor: preview.checkBoxes.element(boundBy: 1))
+
+        checkbox.click()
+        XCTAssertTrue(
+            waitUntil { self.editor.value as? String == "- [x] Buy milk\n- [x] Done" },
+            "checkbox did not check the task: \(editor.value ?? "")")
+
+        // The preview shows the new state, and the click can be undone.
+        XCTAssertTrue(waitUntil { checkbox.value as? Int == 1 }, "preview not updated")
+        checkbox.click()
+        XCTAssertTrue(
+            waitUntil { self.editor.value as? String == "- [ ] Buy milk\n- [x] Done" },
+            "checkbox did not uncheck the task")
+        launchedApp.typeKey("z", modifierFlags: .command)
+        XCTAssertTrue(
+            waitUntil { self.editor.value as? String == "- [x] Buy milk\n- [x] Done" },
+            "undo did not restore the task: \(editor.value ?? "")")
+    }
+
     func testZoomChangesEditorAndPreview() {
         let heading = preview.staticTexts["Zoom"].firstMatch
         type("# Zoom", thenWaitFor: heading)

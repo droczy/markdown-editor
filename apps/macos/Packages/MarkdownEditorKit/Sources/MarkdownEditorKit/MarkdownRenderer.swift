@@ -79,10 +79,35 @@ public enum MarkdownRenderer {
 
     /// Renders `markdown` to a complete HTML page for the preview, off the
     /// calling actor. The page carries a strict Content Security Policy and
-    /// must be loaded with ``pageBaseURL``.
+    /// must be loaded with ``pageBaseURL``. With a `taskToken` (letters,
+    /// digits and hyphens, e.g. a UUID), task checkboxes become links that
+    /// the preview hands over as ``PreviewLinkAction/toggleTask(token:index:)``.
     @concurrent
-    public static func renderPage(_ markdown: String) async throws(Failure) -> String {
-        try convertingErrors { try MarkdownEditorCore.renderPage(markdown: markdown) }
+    public static func renderPage(_ markdown: String, taskToken: String? = nil)
+        async throws(Failure) -> String
+    {
+        try convertingErrors {
+            try MarkdownEditorCore.renderPage(markdown: markdown, taskToken: taskToken)
+        }
+    }
+
+    /// An edit that checks or unchecks one task: replace the single byte at
+    /// `utf8Offset` with `replacement`.
+    public struct TaskEdit: Equatable, Sendable {
+        /// Offset of the character between the brackets, in UTF-8 bytes.
+        public let utf8Offset: Int
+        /// `"x"` to check, `" "` to uncheck.
+        public let replacement: String
+    }
+
+    /// The edit that checks or unchecks the task with `index` (in document
+    /// order) in `markdown`, or `nil` if there is no such task.
+    public static func taskEdit(in markdown: String, index: Int) -> TaskEdit? {
+        guard index >= 0,
+            let toggle = MarkdownEditorCore.toggleTask(markdown: markdown, index: UInt64(index)),
+            let offset = Int(exactly: toggle.offset)
+        else { return nil }
+        return TaskEdit(utf8Offset: offset, replacement: toggle.replacement)
     }
 
     /// Renders `markdown` on the current thread.

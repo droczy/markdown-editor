@@ -182,6 +182,7 @@ fn filter_attribute<'u>(element: &str, attribute: &str, value: &'u str) -> Optio
     let allowed = escape_cost(value) <= MAX_ATTRIBUTE_ESCAPE_COST
         && match (element, attribute) {
             ("img", "src") => is_local_relative_url(value),
+            ("a", "href") => !is_protocol_relative_url(value),
             ("pre", "lang") => is_plain_language_name(value),
             _ => true,
         };
@@ -208,13 +209,8 @@ fn is_plain_language_name(value: &str) -> bool {
 /// Path traversal (`../`) is *not* checked here; the platform layer must
 /// resolve paths and enforce the sandbox before loading any file.
 fn is_local_relative_url(value: &str) -> bool {
-    // Browsers strip tabs and newlines anywhere in a URL and trim leading
-    // control characters and spaces, so check the normalized form.
-    let normalized: String = value
-        .chars()
-        .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
-        .collect();
-    let trimmed = normalized.trim_start_matches(|c: char| c <= ' ');
+    let normalized = normalize_url(value);
+    let trimmed = normalized.as_str();
 
     if trimmed.is_empty() || trimmed.starts_with(['/', '\\']) {
         return false;
@@ -224,10 +220,56 @@ fn is_local_relative_url(value: &str) -> bool {
     !trimmed[..first_delimiter].contains(':')
 }
 
+/// Returns `true` for protocol-relative URLs such as `//host/path`, which
+/// take the scheme of the page. In the preview they would lead to the page's
+/// own internal addresses (such as `markdown-preview://task/...`), so links
+/// of this form are removed. Backslashes count as slashes, as in browsers.
+fn is_protocol_relative_url(value: &str) -> bool {
+    let normalized = normalize_url(value);
+    let mut chars = normalized.chars();
+    matches!(
+        (chars.next(), chars.next()),
+        (Some('/' | '\\'), Some('/' | '\\'))
+    )
+}
+
+/// What a browser sees: tabs and newlines are removed anywhere in a URL, and
+/// leading control characters and spaces are trimmed.
+fn normalize_url(value: &str) -> String {
+    let normalized: String = value
+        .chars()
+        .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
+        .collect();
+    normalized.trim_start_matches(|c: char| c <= ' ').to_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    #[test]
+    fn protocol_relative_links_are_removed() {
+        for url in [
+            "//task/t/0",
+            "\\\\task/t/0",
+            "/\\task",
+            "\\/task",
+            " //task",
+            "/\t/task",
+            "\u{1}//task",
+        ] {
+            assert!(is_protocol_relative_url(url), "{url:?}");
+        }
+        for url in ["/path", "path//x", "a.md", "https://example.com", "#x", ""] {
+            assert!(!is_protocol_relative_url(url), "{url:?}");
+        }
+        let html = clean("<a href=\"//task/t/0\">x</a><a href=\"other.md\">y</a>");
+        assert_eq!(
+            html,
+            "<a rel=\"noopener noreferrer\">x</a><a href=\"other.md\" rel=\"noopener noreferrer\">y</a>"
+        );
+    }
 
     #[test]
     fn local_relative_urls_are_allowed() {

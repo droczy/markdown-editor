@@ -50,7 +50,7 @@ struct PreviewControllerTests {
         let pauses = pauses
         return PreviewController(
             delay: .milliseconds(200),
-            render: { text throws(MarkdownRenderer.Failure) in
+            render: { text, _ throws(MarkdownRenderer.Failure) in
                 await renders.pass(text)
                 if text == "bad" {
                     throw .internalError("bad")
@@ -67,7 +67,7 @@ struct PreviewControllerTests {
         await eventually("rendering starts") { await renders.arrivals == ["a"] }
         #expect(await pauses.arrivals.isEmpty)
         await renders.openOne()
-        await eventually("the page is shown") { controller.page == "page:a" }
+        await eventually("the page is shown") { controller.page?.html == "page:a" }
         #expect(controller.failure == nil)
     }
 
@@ -85,7 +85,7 @@ struct PreviewControllerTests {
         await pauses.openOne()
         await eventually("the latest text renders") { await renders.arrivals == ["ab"] }
         await renders.openOne()
-        await eventually("the page is shown") { controller.page == "page:ab" }
+        await eventually("the page is shown") { controller.page?.html == "page:ab" }
         try? await Task.sleep(for: .milliseconds(50))
         #expect(await renders.arrivals == ["ab"])
     }
@@ -108,9 +108,9 @@ struct PreviewControllerTests {
         await eventually("the latest text renders next") {
             await renders.arrivals == ["a", "bc"]
         }
-        #expect(controller.page == "page:a")
+        #expect(controller.page?.html == "page:a")
         await renders.openOne()
-        await eventually("the latest page is shown") { controller.page == "page:bc" }
+        await eventually("the latest page is shown") { controller.page?.html == "page:bc" }
     }
 
     @Test("A failure keeps the last page until the text renders again")
@@ -118,19 +118,19 @@ struct PreviewControllerTests {
         let controller = makeController()
         controller.show("a")
         await renders.openOne()
-        await eventually("the first page is shown") { controller.page == "page:a" }
+        await eventually("the first page is shown") { controller.page?.html == "page:a" }
 
         controller.show("bad")
         await eventually("the bad text renders") { await renders.waitingCount == 1 }
         await renders.openOne()
         await eventually("the failure is reported") { controller.failure != nil }
         #expect(controller.failure == .internalError("bad"))
-        #expect(controller.page == "page:a")
+        #expect(controller.page?.html == "page:a")
 
         controller.show("c")
         await eventually("the next text renders") { await renders.waitingCount == 1 }
         await renders.openOne()
-        await eventually("the new page is shown") { controller.page == "page:c" }
+        await eventually("the new page is shown") { controller.page?.html == "page:c" }
         #expect(controller.failure == nil)
     }
 
@@ -139,7 +139,8 @@ struct PreviewControllerTests {
         let controller = PreviewController(delay: .zero)
         controller.show("# Title")
         await eventually("the page is shown") { controller.page != nil }
-        #expect(controller.page?.contains("<h1>Title</h1>") == true)
-        #expect(controller.page?.contains(MarkdownRenderer.pageContentSecurityPolicy) == true)
+        #expect(controller.page?.html.contains("<h1>Title</h1>") == true)
+        #expect(
+            controller.page?.html.contains(MarkdownRenderer.pageContentSecurityPolicy) == true)
     }
 }

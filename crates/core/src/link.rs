@@ -6,7 +6,8 @@
 //! `http`, `https` and `mailto` may ever leave the app, and only after the
 //! user confirmed it.
 
-use crate::PAGE_BASE_URL;
+use crate::page::TASK_LINK_PREFIX;
+use crate::{PAGE_BASE_URL, is_valid_task_token};
 
 /// Longest URL, in bytes, that may be opened. Longer URLs cannot be shown
 /// in full in the confirmation dialog, so they are blocked.
@@ -28,6 +29,15 @@ pub enum LinkAction {
     OpenInEmailApp {
         /// The recipients as written in the link (may be empty).
         recipients: String,
+    },
+    /// A click on a task checkbox in the preview: check or uncheck the task
+    /// with this index (see [`crate::toggle_task`]), but only if the token
+    /// is the one the shown page was rendered with.
+    ToggleTask {
+        /// The token of the page the checkbox belongs to.
+        token: String,
+        /// Index of the task in document order, counted from 0.
+        index: usize,
     },
     /// A relative link to another file or to a position in the document.
     /// Not supported yet.
@@ -73,9 +83,31 @@ pub fn link_action(url: &str) -> LinkAction {
         "mailto" => LinkAction::OpenInEmailApp {
             recipients: rest.split(['?', '#']).next().unwrap_or_default().to_owned(),
         },
-        scheme if is_page_scheme(scheme) => LinkAction::Unsupported,
+        scheme if is_page_scheme(scheme) => task_link(url).unwrap_or(LinkAction::Unsupported),
         _ => LinkAction::Blocked,
     }
+}
+
+/// Parses exactly `markdown-preview://task/<token>/<index>`: a valid token,
+/// a decimal index without leading zeros, nothing else.
+fn task_link(url: &str) -> Option<LinkAction> {
+    let (scheme, _) = url.split_once(':')?;
+    let rest = &url[scheme.len()..];
+    let (_, prefix_rest) = TASK_LINK_PREFIX.split_once(':')?;
+    let (token, index) = rest
+        .strip_prefix(':')?
+        .strip_prefix(prefix_rest)?
+        .split_once('/')?;
+    let canonical_index = !index.is_empty()
+        && index.bytes().all(|byte| byte.is_ascii_digit())
+        && (index == "0" || !index.starts_with('0'));
+    if !is_valid_task_token(token) || !canonical_index {
+        return None;
+    }
+    Some(LinkAction::ToggleTask {
+        token: token.to_owned(),
+        index: index.parse().ok()?,
+    })
 }
 
 /// A URL scheme: an ASCII letter followed by letters, digits, `+`, `-` or
@@ -193,6 +225,50 @@ mod tests {
         ] {
             assert_eq!(link_action(url), LinkAction::Unsupported, "{url}");
         }
+    }
+
+    fn toggle(token: &str, index: usize) -> LinkAction {
+        LinkAction::ToggleTask {
+            token: token.into(),
+            index,
+        }
+    }
+
+    #[test]
+    fn task_links_toggle_tasks() {
+        assert_eq!(
+            link_action("markdown-preview://task/abc-1/0"),
+            toggle("abc-1", 0)
+        );
+        assert_eq!(link_action("markdown-preview://task/T/42"), toggle("T", 42));
+        assert_eq!(link_action("MARKDOWN-PREVIEW://task/t/7"), toggle("t", 7));
+    }
+
+    #[test]
+    fn malformed_task_links_do_nothing() {
+        for url in [
+            "markdown-preview://task/",
+            "markdown-preview://task/t",
+            "markdown-preview://task/t/",
+            "markdown-preview://task//1",
+            "markdown-preview://task/t/01",
+            "markdown-preview://task/t/-1",
+            "markdown-preview://task/t/1/",
+            "markdown-preview://task/t/1?x",
+            "markdown-preview://task/t/1#x",
+            "markdown-preview://task/t/1/2",
+            "markdown-preview://task/a_b/1",
+            "markdown-preview://task/t/99999999999999999999999999",
+            "markdown-preview://TASK/t/1",
+            "markdown-preview://document/task/t/1",
+            "markdown-preview:task/t/1",
+        ] {
+            assert_eq!(link_action(url), LinkAction::Unsupported, "{url}");
+        }
+        assert_eq!(
+            link_action(&format!("markdown-preview://task/{}/1", "a".repeat(65))),
+            LinkAction::Unsupported
+        );
     }
 
     #[test]
