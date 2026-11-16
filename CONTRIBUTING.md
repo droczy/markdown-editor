@@ -46,6 +46,8 @@ Testing:
 [Semantic Versioning](https://semver.org/) with tags `vX.Y.Z` and
 `vX.Y.Z-beta.N`. Release notes contain an overview, all changes, security
 notes, known issues, a test summary and SHA-256 checksums of all artifacts.
+Releases are built only by the release workflow from a signed tag; see
+[docs/releasing.md](docs/releasing.md).
 
 ## Checks to run locally
 
@@ -54,6 +56,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets
 cargo test --workspace
 cargo deny check
+scripts/prepare-release.sh --self-test
 xcrun swift-format lint --strict --recursive apps/macos/App apps/macos/UITests \
   apps/macos/Packages/MarkdownEditorKit/Sources apps/macos/Packages/MarkdownEditorKit/Tests
 ```

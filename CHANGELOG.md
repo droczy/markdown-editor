@@ -71,6 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   preview page (Content Security Policy and stylesheet), and `link_action`,
   which decides what a click on a link does after the web engine resolved
   it; both are available to Swift through the FFI crate.
+- Release workflow: a signed tag `vX.Y.Z` or `vX.Y.Z-beta.N` on `main`
+  whose CI passed is built into a draft GitHub release with the app, an
+  SBOM of its Rust crates (CycloneDX, `cargo-cyclonedx`), SHA-256
+  checksums, and build provenance and SBOM attestations signed by GitHub.
+  `scripts/prepare-release.sh` checks versions, CHANGELOG and release
+  notes and packages the files; the process is described in
+  `docs/releasing.md`.
 - `scripts/check-no-network.sh` (run in CI) fails if the app's Swift code
   uses networking or URL loading APIs or hands URLs or files to other apps
   (`NSWorkspace`, Launch Services, SwiftUI `openURL` and `Link`).

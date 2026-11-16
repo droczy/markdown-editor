@@ -55,6 +55,8 @@ jobs:
         run: |
           scripts/check-no-network.sh --self-test
           scripts/check-no-network.sh
+      - name: Release script self-test
+        run: scripts/prepare-release.sh --self-test
 
   test:
     name: Tests (${{ matrix.os }})
