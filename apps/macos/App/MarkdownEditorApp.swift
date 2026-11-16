@@ -1,3 +1,4 @@
+import AppKit
 import MarkdownEditorKit
 import SwiftUI
 
@@ -5,6 +6,13 @@ import SwiftUI
 struct MarkdownEditorApp: App {
     /// Whether the privacy information was shown once already.
     @AppStorage(PrivacyInfoView.shownKey) private var privacyInfoShown = false
+
+    init() {
+        // No window tabs for now: every document has its own window, and the
+        // View menu offers no tab commands. Worth reconsidering together with
+        // the folder and file tree.
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
 
     var body: some Scene {
         DocumentGroup(newDocument: { MarkdownDocument() }) { file in

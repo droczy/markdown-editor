@@ -77,6 +77,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Window tabs are turned off: every document opens in its own window, and
+  the View and Window menus offer no tab commands. To be reconsidered with
+  the folder and file tree.
 - The GitHub workflows are audited with zizmor 1.31.1 on every pull
   request (new required check "Workflow security (zizmor)"), and the
   locked dependencies are checked against the RustSec advisories every
