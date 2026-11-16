@@ -166,8 +166,12 @@ final class EditorPreviewTests: XCTestCase {
     func testClickingATaskCheckboxEditsTheText() {
         let checkbox = preview.checkBoxes["Task"].firstMatch
         // Wait until the preview shows the whole text: a click on an older
-        // page is ignored on purpose (its task index may be outdated).
-        type("- [ ] Buy milk\n- [x] Done", thenWaitFor: preview.checkBoxes.element(boundBy: 1))
+        // page is ignored on purpose (its task index may be outdated). The
+        // second checkbox alone appears before the last word is typed.
+        let lastWord = preview.staticTexts.matching(
+            NSPredicate(format: "value CONTAINS 'Done' OR label CONTAINS 'Done'")
+        ).firstMatch
+        type("- [ ] Buy milk\n- [x] Done", thenWaitFor: lastWord)
 
         checkbox.click()
         XCTAssertTrue(
