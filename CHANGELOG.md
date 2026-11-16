@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Code scanning uses an advanced CodeQL setup (`.github/workflows/codeql.yml`)
+  that builds the macOS app, so the Swift code is analyzed as well; GitHub's
+  default setup could not build it. Actions, Rust and Swift are analyzed
+  with the `security-extended` queries on every pull request, on `main` and
+  weekly.
 - CI hardening: every job has a timeout; fuzzing uses a pinned nightly
   toolchain and fails on any input that takes longer than 10 seconds; the
   CI tools cargo-deny, cargo-llvm-cov, cargo-fuzz and cargo-mutants are
