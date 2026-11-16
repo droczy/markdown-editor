@@ -91,7 +91,9 @@ struct NavigationDecisionTests {
 @MainActor
 @Suite("Link confirmation")
 struct LinkConfirmationTests {
-    let url = URL(string: "https://example.com/path?q=1")!
+    // A fallback instead of `!` (swift-format forbids force unwrapping); the
+    // tests below check the address, so a wrong URL would fail them.
+    let url = URL(string: "https://example.com/path?q=1") ?? URL(filePath: "/")
 
     @Test("Web links ask first; Open has no key equivalent")
     func webLink() {
