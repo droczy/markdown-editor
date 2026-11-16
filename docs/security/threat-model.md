@@ -31,7 +31,7 @@ flowchart LR
     doc --> editor
     editor -- "TB2: FFI, max. 10 MiB" --> core
     core -- "TB3: sanitized HTML" --> preview
-    preview -- "TB4: links (after confirmation)" --> outside
+    preview -- "TB4: link addresses (copied, never opened)" --> outside
 ```
 
 ## Assets
@@ -76,7 +76,7 @@ milestone), or **accepted** (see residual risks).
 
 | ID | Threat | Mitigation | Status |
 | --- | --- | --- | --- |
-| S1 | The preview imitates app dialogs or hides the real link target | No scripts or forms in the preview; before a link opens, a native dialog shows its full address (ASCII only, internationalized host names as Punycode) and its real host without user name or password | in place |
+| S1 | The preview imitates app dialogs or hides the real link target | No scripts or forms in the preview; links are never opened; the notice after a click shows the real host without user name or password and the copied address (ASCII only, internationalized host names as Punycode) | in place |
 | S2 | A4 or A3 pushes code under a maintainer's identity | Protected `main`, signed commits, required checks, review before merge | in place |
 
 ### Tampering
@@ -88,6 +88,7 @@ milestone), or **accepted** (see residual risks).
 | T3 | A3 injects code through a dependency or Action | `Cargo.lock`, crates.io only (`cargo-deny`), Actions pinned to commit SHAs, 14-day cooldown for new releases, Dependabot | in place |
 | T4 | Release artifacts are replaced or modified | Built from tagged commits; SHA-256 checksums in the release notes | planned (first beta) |
 | T5 | A click in the preview changes the document in an unintended place, or a document triggers such changes itself (task checkboxes) | Each page carries a random token in its task links; a click is applied only with the token of the shown page and only if the text has not changed since that page was rendered; the core changes exactly the one character between the brackets after checking it; protocol-relative links (`//host`), the only way for a document to reach the preview's internal addresses, are removed by the sanitizer; the change goes through the editor and can be undone. Property test: a toggle changes exactly one byte | in place |
+| T6 | A document puts misleading or harmful text on the clipboard through a link (hidden characters, line breaks that run a pasted command) | Only the address checked by the core is copied: printable ASCII without spaces, line breaks or invisible characters, at most 4096 bytes; email addresses are decoded only if the result is printable ASCII; the notice shows the real host and the copied text; nothing is copied for blocked links | in place |
 
 ### Repudiation
 
@@ -119,7 +120,7 @@ protected by signed commits.
 | --- | --- | --- | --- |
 | E1 | Memory corruption in the parser leads to code execution | Safe Rust (`unsafe` forbidden), Swift memory safety; fuzzing | in place |
 | E2 | The preview executes code (script, plugins, navigation to `javascript:` URLs) | Sanitizer; JavaScript of the page disabled; Lockdown Mode; every navigation except the app's own page load is cancelled. The app runs two fixed scripts (keep the scroll position) in an isolated world the page cannot access; values are passed as arguments, never as code | in place |
-| E3 | A link launches a dangerous URL scheme (`file:`, custom app schemes) | The sanitizer allows only `http`, `https`, `mailto` and relative links; the scheme is checked again after WebKit resolved the link (`link_action` in the core); confirmation before opening, Return and Escape cancel; no system services in the preview's context menu | in place |
+| E3 | A link launches a dangerous URL scheme (`file:`, custom app schemes) | Links are never opened, only their address is copied, so no URL is ever handed to another app; CI forbids the APIs for that in the app's code (`NSWorkspace`, Launch Services, `openURL`). The sanitizer allows only `http`, `https`, `mailto` and relative links, and the scheme is checked again after WebKit resolved the link (`link_action` in the core); no system services in the preview's context menu | in place |
 | E4 | The app gains more rights than needed | App Sandbox with user-selected file access and outgoing connections (required by WebKit) only; hardened runtime; no debugger attachment in release builds; CI verifies the exact entitlements | in place |
 | E5 | A4 compromises CI through a pull request (privileged triggers, script injection) | Only `pull_request` triggers; read-only token; no secrets; untrusted values passed through environment variables | in place |
 
@@ -128,6 +129,10 @@ protected by signed commits.
 - Vulnerabilities in macOS, WebKit or the Swift and Rust standard libraries
   are outside the project's control. They are mitigated by sandboxing and by
   keeping toolchains current.
+- **A click on a link replaces the clipboard.** The copied address may also
+  reach the user's other devices through Universal Clipboard and clipboard
+  history tools. Accepted: copying is the purpose of the click, and the
+  notice says what was copied.
 - **Outgoing connections are allowed by the sandbox.** WebKit's network
   process refuses to start for a sandboxed app without this permission, even
   when nothing is loaded from the network, so the preview cannot work

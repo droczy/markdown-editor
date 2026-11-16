@@ -33,9 +33,16 @@ struct PageAndLinkTests {
     @Test(
         "Link decisions cross the boundary",
         arguments: [
-            ("https://example.com/a", PreviewLinkAction.openInBrowser(host: "example.com")),
-            ("https://user@evil.example/", .openInBrowser(host: "evil.example")),
-            ("mailto:a@example.com?subject=x", .openInEmailApp(recipients: "a@example.com")),
+            (
+                "https://example.com/a",
+                PreviewLinkAction.copyWebAddress(
+                    address: "https://example.com/a", host: "example.com")
+            ),
+            (
+                "https://user@evil.example/",
+                .copyWebAddress(address: "https://user@evil.example/", host: "evil.example")
+            ),
+            ("mailto:a%40example.com?subject=x", .copyEmailAddress("a@example.com")),
             ("markdown-preview://document/other.md", .unsupported),
             ("file:///etc/passwd", .blocked),
             ("javascript:alert(1)", .blocked),
@@ -91,47 +98,79 @@ struct NavigationDecisionTests {
 }
 
 @MainActor
-@Suite("Link confirmation")
-struct LinkConfirmationTests {
-    // A fallback instead of `!` (swift-format forbids force unwrapping); the
-    // tests below check the address, so a wrong URL would fail them.
-    let url = URL(string: "https://example.com/path?q=1") ?? URL(filePath: "/")
+@Suite("Copying links")
+struct LinkCopyTests {
+    /// A private pasteboard, so the tests never touch the user's clipboard.
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name("test-\(UUID().uuidString)"))
 
-    @Test("Web links ask first; Open has no key equivalent")
+    private var copied: String? { pasteboard.string(forType: .string) }
+
+    @Test("Web links copy the whole address and name the real host")
     func webLink() throws {
-        let alert = try #require(
-            LinkConfirmation.makeAlert(for: .openInBrowser(host: "example.com"), url: url))
-        #expect(alert.messageText.contains("“example.com”"))
-        #expect(alert.informativeText.contains("https://example.com/path?q=1"))
-        #expect(alert.buttons.map(\.title) == ["Cancel", "Open"])
-        #expect(alert.buttons[1].keyEquivalent.isEmpty)
+        let notice = try #require(
+            LinkCopy.handle(
+                .copyWebAddress(address: "https://user@evil.example/x", host: "evil.example"),
+                pasteboard: pasteboard))
+        #expect(copied == "https://user@evil.example/x")
+        #expect(notice.title == "Link copied: evil.example")
+        #expect(notice.detail == "https://user@evil.example/x")
+        #expect(notice.copied)
     }
 
-    @Test("Email links ask first; Open has no key equivalent")
+    @Test("Email links copy only the address")
     func emailLink() throws {
-        let mail = try #require(URL(string: "mailto:a@example.com"))
-        let alert = try #require(
-            LinkConfirmation.makeAlert(for: .openInEmailApp(recipients: "a@example.com"), url: mail)
-        )
-        #expect(alert.messageText.contains("“a@example.com”"))
-        #expect(alert.buttons.map(\.title) == ["Cancel", "Open"])
-        #expect(alert.buttons[1].keyEquivalent.isEmpty)
-        let noRecipient = LinkConfirmation.makeAlert(
-            for: .openInEmailApp(recipients: ""), url: mail)
-        #expect(noRecipient?.messageText == "Write an email?")
+        let notice = try #require(
+            LinkCopy.handle(.copyEmailAddress("a@example.com"), pasteboard: pasteboard))
+        #expect(copied == "a@example.com")
+        #expect(notice.title == "Email address copied")
+        #expect(notice.copied)
     }
 
     @Test(
-        "Unsupported and blocked links only explain",
-        arguments: [PreviewLinkAction.unsupported, .blocked])
-    func explanationOnly(action: PreviewLinkAction) {
-        let alert = LinkConfirmation.makeAlert(for: action, url: url)
-        #expect(alert?.buttons.map(\.title) == ["OK"])
+        "Nothing is copied for empty email links, other files and blocked links",
+        arguments: [PreviewLinkAction.copyEmailAddress(""), .unsupported, .blocked])
+    func nothingCopied(action: PreviewLinkAction) throws {
+        pasteboard.clearContents()
+        pasteboard.setString("unchanged", forType: .string)
+        let notice = try #require(LinkCopy.handle(action, pasteboard: pasteboard))
+        #expect(copied == "unchanged")
+        #expect(!notice.copied)
     }
 
-    @Test("Task checkboxes get no dialog")
-    func taskToggleHasNoDialog() {
-        #expect(LinkConfirmation.makeAlert(for: .toggleTask(token: "t", index: 0), url: url) == nil)
+    @Test("Task checkboxes are not handled here")
+    func taskToggle() {
+        #expect(LinkCopy.handle(.toggleTask(token: "t", index: 0), pasteboard: pasteboard) == nil)
+        #expect(copied == nil)
+    }
+
+    @Test("Blocked links stay blocked across the boundary and are never copied")
+    func blockedFromCore() throws {
+        for url in ["file:///etc/passwd", "javascript:alert(1)", "x-apple-helpviewer://x"] {
+            let action = PreviewLinkAction(resolvedURL: try #require(URL(string: url)))
+            #expect(action == .blocked, "\(url)")
+            _ = LinkCopy.handle(action, pasteboard: pasteboard)
+        }
+        #expect(copied == nil)
+    }
+
+    @Test("The explanation is shown only once")
+    func explanationOnce() throws {
+        LinkCopy.explainedThisSession = false
+        defer { LinkCopy.explainedThisSession = false }
+        let defaults = try #require(UserDefaults(suiteName: "test-\(UUID().uuidString)"))
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300), styleMask: [.titled],
+            backing: .buffered, defer: true)
+        var shown: [String] = []
+        let record: (NSAlert, NSWindow) -> Void = { alert, _ in shown.append(alert.messageText) }
+        LinkCopy.explainOnce(in: nil, defaults: defaults, present: record)
+        #expect(shown.isEmpty, "shown without a window")
+        LinkCopy.explainOnce(in: window, defaults: defaults, present: record)
+        #expect(shown == ["Links are copied, not opened"])
+        #expect(defaults.bool(forKey: LinkCopy.hintShownKey))
+        LinkCopy.explainOnce(in: window, defaults: defaults, present: record)
+        #expect(shown.count == 1, "shown a second time")
+        #expect(LinkCopy.makeHint().buttons.map(\.title) == ["OK"])
     }
 }
 

@@ -11,8 +11,9 @@ final class LaunchTests: XCTestCase {
     func testNewDocumentCanBeEdited() {
         let app = XCUIApplication()
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
-        // Skip the first-launch privacy window.
-        app.launchArguments += ["-privacyInfoShown", "YES"]
+        // Skip the first-launch privacy window and the one-time explanation
+        // of copied links.
+        app.launchArguments += ["-privacyInfoShown", "YES", "-linkCopyHintShown", "YES"]
         app.launch()
 
         // DocumentGroup may show an open panel at launch; dismiss it and

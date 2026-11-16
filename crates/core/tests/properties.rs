@@ -49,15 +49,20 @@ proptest! {
     fn only_web_and_email_links_leave_the_app(url in url_like()) {
         let lowercase = url.to_ascii_lowercase();
         match link_action(&url) {
-            LinkAction::OpenInBrowser { host } => {
+            LinkAction::CopyWebAddress { address, host } => {
                 prop_assert!(
                     lowercase.starts_with("http://") || lowercase.starts_with("https://"),
                     "{url:?}"
                 );
                 prop_assert!(!host.is_empty() && !host.contains(['@', '/', '?', '#']), "{url:?}");
+                prop_assert_eq!(&address, &url);
+                prop_assert!(address.bytes().all(|byte| byte.is_ascii_graphic()), "{url:?}");
             }
-            LinkAction::OpenInEmailApp { .. } => {
+            LinkAction::CopyEmailAddress { address } => {
                 prop_assert!(lowercase.starts_with("mailto:"), "{url:?}");
+                // What is copied never contains spaces, line breaks or
+                // invisible characters.
+                prop_assert!(address.bytes().all(|byte| byte.is_ascii_graphic()), "{url:?}");
             }
             LinkAction::ToggleTask { .. } => {
                 prop_assert!(lowercase.starts_with("markdown-preview://task/"), "{url:?}");

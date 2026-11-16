@@ -72,8 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which decides what a click on a link does after the web engine resolved
   it; both are available to Swift through the FFI crate.
 - `scripts/check-no-network.sh` (run in CI) fails if the app's Swift code
-  uses networking or URL loading APIs, or hands URLs to other apps outside
-  the link confirmation.
+  uses networking or URL loading APIs or hands URLs or files to other apps
+  (`NSWorkspace`, Launch Services, SwiftUI `openURL` and `Link`).
 
 ### Changed
 
@@ -120,11 +120,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a context menu without system services. Tests load a page with dozens of
   ways to reach a local server and run scripts: each of the policy and the
   content blocker alone stops all of them.
-- Links from the preview open only after confirmation. The dialog shows the
-  full address and the real host (without user name or password); Return
-  and Escape cancel. Only `http`, `https` and `mailto` links can be opened;
-  the scheme is checked after the link was resolved, so relative links such
-  as `java%09script:` can never act as a scheme.
+- Links are never opened. A click on a web link copies its address, a
+  click on an email link copies the address only; a short notice at the
+  bottom of the preview names the real host (without user name or
+  password), and the first copy explains once why links are not opened.
+  What is copied comes from the core and is printable ASCII only (no
+  spaces, line breaks or invisible characters). Other files, headings and
+  blocked addresses (`file:`, `javascript:`, other apps' schemes) only get
+  a notice; the scheme is checked after the link was resolved, so relative
+  links such as `java%09script:` can never act as a scheme.
 - Networking crates (HTTP clients, TLS, async I/O runtimes) are banned in
   `deny.toml`.
 - Clicks on task checkboxes are applied only if they carry the random token

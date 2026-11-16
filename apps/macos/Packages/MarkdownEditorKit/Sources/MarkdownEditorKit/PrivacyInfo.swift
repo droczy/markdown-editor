@@ -39,12 +39,12 @@ public struct PrivacyInfoView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("What the app never does").font(.headline)
                 Text(
-                    "Send your documents or any other data anywhere, load images, fonts or "
-                        + "scripts from the internet, run scripts from documents, or collect "
-                        + "usage statistics.")
+                    "Send your documents or any other data anywhere, open links, load images, "
+                        + "fonts or scripts from the internet, run scripts from documents, or "
+                        + "collect usage statistics.")
                 Text(
-                    "Links in your documents open in your browser or email app only after you "
-                        + "confirm them.")
+                    "Links in your documents are never opened: clicking one copies its address, "
+                        + "so you can paste it into your browser or email app yourself.")
             }
             .fixedSize(horizontal: false, vertical: true)
 

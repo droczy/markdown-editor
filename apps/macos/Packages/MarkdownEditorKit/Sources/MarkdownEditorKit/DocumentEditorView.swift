@@ -53,12 +53,20 @@ struct PreviewPane: View {
     /// Called with token and index when a task checkbox is clicked.
     let onToggleTask: @MainActor (String, Int) -> Void
 
+    /// The notice after the last click on a link, shown for a moment.
+    @State private var notice: LinkCopy.Notice?
+    @State private var noticeTask: Task<Void, Never>?
+
     var body: some View {
         PreviewWebView(page: controller.page?.html, zoom: zoom) { url, window in
-            if case .toggleTask(let token, let index) = PreviewLinkAction(resolvedURL: url) {
+            let action = PreviewLinkAction(resolvedURL: url)
+            if case .toggleTask(let token, let index) = action {
                 onToggleTask(token, index)
-            } else {
-                LinkConfirmation.handle(url, in: window)
+            } else if let notice = LinkCopy.handle(action) {
+                show(notice)
+                if notice.copied {
+                    LinkCopy.explainOnce(in: window)
+                }
             }
         }
         .opacity(controller.failure == nil ? 1 : 0.35)
@@ -76,5 +84,59 @@ struct PreviewPane: View {
                 .accessibilityIdentifier("previewError")
             }
         }
+        .overlay(alignment: .bottom) {
+            if let notice {
+                NoticeView(notice: notice)
+                    .padding(12)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: notice)
+    }
+
+    /// Shows `notice` for a moment; a new notice replaces the current one.
+    private func show(_ notice: LinkCopy.Notice) {
+        self.notice = notice
+        AccessibilityNotification.Announcement(
+            [notice.title, notice.detail].compactMap(\.self).joined(separator: ", ")
+        ).post()
+        noticeTask?.cancel()
+        noticeTask = Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            if !Task.isCancelled {
+                self.notice = nil
+            }
+        }
+    }
+}
+
+/// The notice after a click on a link: what was copied, or why nothing was.
+struct NoticeView: View {
+    let notice: LinkCopy.Notice
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: notice.copied ? "doc.on.clipboard" : "info.circle")
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(notice.title).font(.callout.weight(.medium))
+                if let detail = notice.detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .shadow(radius: 4, y: 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            [notice.title, notice.detail].compactMap(\.self).joined(separator: ", ")
+        )
+        .accessibilityIdentifier("linkNotice")
     }
 }

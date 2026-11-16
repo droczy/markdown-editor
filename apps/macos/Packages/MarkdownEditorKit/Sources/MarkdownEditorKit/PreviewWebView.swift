@@ -82,9 +82,8 @@ public struct PreviewWebView: NSViewRepresentable {
 }
 
 /// The preview's web view: offers only harmless context menu items, no
-/// system services (such as "Open" for a link, which would bypass the
-/// confirmation) and does not accept drops (a dropped file would otherwise
-/// be opened in it).
+/// system services (such as "Open" for a link, which would open it) and does
+/// not accept drops (a dropped file would otherwise be opened in it).
 public final class PreviewWKWebView: WKWebView {
     /// Context menu items that are kept; everything else (open link,
     /// download, share, search the web, reload, …) is removed.
