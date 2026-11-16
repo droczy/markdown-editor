@@ -18,6 +18,8 @@ final class DocumentFileTests: XCTestCase {
         self.app = app
         // Start without windows restored from earlier test runs.
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
+        // Skip the first-launch privacy window.
+        app.launchArguments += ["-privacyInfoShown", "YES"]
         app.launch()
         // Dismiss the open panel DocumentGroup may show at launch.
         app.typeKey(.escape, modifierFlags: [])

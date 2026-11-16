@@ -2,8 +2,8 @@
 
 A native, security-focused Markdown editor. macOS (Apple Silicon) first, Linux later.
 
-> **Status:** early development. The Rust core renders Markdown safely; the
-> macOS app is a skeleton. There is no release to download yet.
+> **Status:** early development. The macOS app edits Markdown files with a
+> live, locked-down preview. There is no release to download yet.
 
 ## Goals
 

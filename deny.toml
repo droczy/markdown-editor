@@ -36,6 +36,32 @@ multiple-versions = "warn"
 wildcards = "deny"
 # Path dependencies between our own unpublished crates are fine.
 allow-wildcard-paths = true
+# The app must never connect to the network by itself: the sandbox allows
+# outgoing connections only because WebKit requires it (see
+# docs/security/threat-model.md, I1). Networking crates are therefore banned
+# outright, including TLS and async I/O runtimes.
+deny = [
+    { crate = "reqwest", reason = "networking (the app is offline)" },
+    { crate = "hyper", reason = "networking (the app is offline)" },
+    { crate = "h2", reason = "networking (the app is offline)" },
+    { crate = "ureq", reason = "networking (the app is offline)" },
+    { crate = "curl", reason = "networking (the app is offline)" },
+    { crate = "curl-sys", reason = "networking (the app is offline)" },
+    { crate = "isahc", reason = "networking (the app is offline)" },
+    { crate = "surf", reason = "networking (the app is offline)" },
+    { crate = "attohttpc", reason = "networking (the app is offline)" },
+    { crate = "tungstenite", reason = "networking (the app is offline)" },
+    { crate = "quinn", reason = "networking (the app is offline)" },
+    { crate = "socket2", reason = "networking (the app is offline)" },
+    { crate = "mio", reason = "networking (the app is offline)" },
+    { crate = "tokio", reason = "networking (the app is offline)" },
+    { crate = "async-std", reason = "networking (the app is offline)" },
+    { crate = "smol", reason = "networking (the app is offline)" },
+    { crate = "native-tls", reason = "networking (the app is offline)" },
+    { crate = "openssl", reason = "networking (the app is offline)" },
+    { crate = "openssl-sys", reason = "networking (the app is offline)" },
+    { crate = "rustls", reason = "networking (the app is offline)" },
+]
 
 [sources]
 # Crates may only come from crates.io; no git or alternative registries.

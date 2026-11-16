@@ -29,8 +29,14 @@ Only the latest release receives security fixes during early development.
   everything except the elements and attributes the parser legitimately
   produces. Links are limited to `http`, `https`, `mailto` and relative
   targets; images only to relative paths.
-- **Offline.** The app requests no network permission and never loads remote
-  resources such as images, fonts or scripts.
+- **Offline.** The app never loads remote resources such as images, fonts
+  or scripts, and never sends data anywhere. The preview blocks every load
+  in independent ways (the sanitizer removes remote addresses; a strict
+  Content Security Policy and a content blocker each refuse every request)
+  and never navigates; links open in the browser only after confirmation.
+  The App Sandbox allows outgoing connections only because WebKit, which
+  shows the preview, requires it. CI ensures that the app's own code uses no
+  networking APIs and the core no networking libraries.
 - **Resource limits.** Inputs above 10 MiB, nested deeper than 1000 levels
   or expanding to more than 2,000,000 syntax tree nodes are rejected to
   prevent denial of service.
@@ -44,13 +50,17 @@ Only the latest release receives security fixes during early development.
   to commit SHAs; new dependency releases are adopted after a cooldown.
 
 - **macOS app.** Runs in the App Sandbox with access only to files the user
-  opens or saves and without network access; hardened runtime enabled; no
-  third-party dynamic libraries; release builds forbid debugger attachment.
-  CI verifies these properties on every change.
+  opens or saves, plus outgoing connections for WebKit (see above); hardened
+  runtime enabled; no third-party dynamic libraries; release builds forbid
+  debugger attachment. CI verifies these properties on every change.
+- **Preview.** Scripts in the page never run, WebKit's Lockdown Mode is on,
+  nothing is stored on disk, the context menu offers only copying and
+  looking up, and dropped files are not opened. Links show their full
+  address and real host before anything opens; only `http`, `https` and
+  `mailto` links can be opened.
 - **Data integrity.** Files are written atomically and preserved byte for
   byte (encoding, line endings, byte order mark). Files that are not valid
   UTF-8 or larger than 50 MiB are refused instead of being altered. External
   changes are never overwritten silently.
 
-Planned: a JavaScript-free preview with a strict Content Security Policy,
-and Flatpak sandboxing on Linux.
+Planned: Flatpak sandboxing on Linux.

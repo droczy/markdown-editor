@@ -3,9 +3,25 @@ import SwiftUI
 
 @main
 struct MarkdownEditorApp: App {
+    /// Whether the privacy information was shown once already.
+    @AppStorage(PrivacyInfoView.shownKey) private var privacyInfoShown = false
+
     var body: some Scene {
-        DocumentGroup(newDocument: MarkdownDocument()) { file in
-            ContentView(document: file.$document)
+        DocumentGroup(newDocument: { MarkdownDocument() }) { file in
+            ContentView(document: file.document)
         }
+        .commands {
+            TextZoomCommands()
+            PrivacyInfoCommands()
+        }
+
+        // Shown at the first launch; afterwards from the Help menu.
+        Window(PrivacyInfoView.title, id: PrivacyInfoView.windowID) {
+            PrivacyInfoView()
+                .onAppear { privacyInfoShown = true }
+        }
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(privacyInfoShown ? .suppressed : .presented)
     }
 }

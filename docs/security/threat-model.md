@@ -76,7 +76,7 @@ milestone), or **accepted** (see residual risks).
 
 | ID | Threat | Mitigation | Status |
 | --- | --- | --- | --- |
-| S1 | The preview imitates app dialogs or hides the real link target | No scripts or forms in the preview; the link target is shown before it opens | planned (v0.1) |
+| S1 | The preview imitates app dialogs or hides the real link target | No scripts or forms in the preview; before a link opens, a native dialog shows its full address (ASCII only, internationalized host names as Punycode) and its real host without user name or password | in place |
 | S2 | A4 or A3 pushes code under a maintainer's identity | Protected `main`, signed commits, required checks, review before merge | in place |
 
 ### Tampering
@@ -97,9 +97,9 @@ protected by signed commits.
 
 | ID | Threat | Mitigation | Status |
 | --- | --- | --- | --- |
-| I1 | A document triggers a network request (remote image, font, prefetch) that reveals it was opened | No network entitlement; the sanitizer removes remote images; strict Content Security Policy in the preview | in place (sanitizer, entitlement); CSP planned (v0.1) |
+| I1 | A document triggers a network request (remote image, font, prefetch) that reveals it was opened | The sanitizer removes remote images; Content Security Policy `default-src 'none'`; a content blocker refuses every load; no navigation; each of policy and content blocker alone blocks a page with dozens of ways to load something (test with a local server). The sandbox allows outgoing connections only because WebKit requires it; CI forbids networking APIs in the app's code and networking crates in the core | in place |
 | I2 | A document reads other local files (`file:` URLs, absolute paths, `../`) | The sanitizer allows only relative image paths without scheme or host; App Sandbox; paths resolved and confined to the document folder before loading | in place (sanitizer, sandbox); path confinement planned (local images, v0.2) |
-| I3 | Script in the preview reads the document and sends it elsewhere | Raw HTML escaped; allowlist sanitizer without scripts or event handlers; JavaScript disabled in the preview | in place (core); JavaScript off planned (v0.1) |
+| I3 | Script in the preview reads the document and sends it elsewhere | Raw HTML escaped; allowlist sanitizer without scripts or event handlers; JavaScript of the page disabled; Content Security Policy without script sources; Lockdown Mode | in place |
 | I4 | Old document versions keep content the user deleted | Documented system behavior; option to delete versions | planned (v1.0) |
 | I5 | Secrets end up in the repository or CI logs | Secret scanning with push protection; CI uses no secrets | in place |
 
@@ -110,16 +110,16 @@ protected by signed commits.
 | D1 | Large or pathological documents exhaust CPU or memory | Limits: 50 MiB per file, 10 MiB per render, nesting depth 1000, 2,000,000 syntax tree nodes, linear-time escaping. Each limit has worst-case tests; fuzzing | in place |
 | D2 | Deep nesting overflows the stack | Iterative depth check; tests on a 512 KiB stack | in place |
 | D3 | An unexpected panic in the core crashes the app and loses unsaved text | `panic = unwind`; UniFFI turns panics into Swift errors | in place |
-| D4 | Rendering blocks the user interface | Rendering off the main actor; at most one render at a time | in place (off main actor); single render planned (v0.1) |
+| D4 | Rendering blocks the user interface | Rendering off the main actor, after a pause in typing; at most one render at a time | in place |
 
 ### Elevation of privilege
 
 | ID | Threat | Mitigation | Status |
 | --- | --- | --- | --- |
 | E1 | Memory corruption in the parser leads to code execution | Safe Rust (`unsafe` forbidden), Swift memory safety; fuzzing | in place |
-| E2 | The preview executes code (script, plugins, navigation to `javascript:` URLs) | Sanitizer; JavaScript disabled; no navigation inside the preview | in place (sanitizer); preview settings planned (v0.1) |
-| E3 | A link launches a dangerous URL scheme (`file:`, custom app schemes) | Only `http`, `https` and `mailto`; confirmation before opening | in place (sanitizer); confirmation planned (v0.1) |
-| E4 | The app gains more rights than needed | App Sandbox with only user-selected file access; hardened runtime; no debugger attachment in release builds; CI verifies the exact entitlements | in place |
+| E2 | The preview executes code (script, plugins, navigation to `javascript:` URLs) | Sanitizer; JavaScript of the page disabled; Lockdown Mode; every navigation except the app's own page load is cancelled. The app runs two fixed scripts (keep the scroll position) in an isolated world the page cannot access; values are passed as arguments, never as code | in place |
+| E3 | A link launches a dangerous URL scheme (`file:`, custom app schemes) | The sanitizer allows only `http`, `https`, `mailto` and relative links; the scheme is checked again after WebKit resolved the link (`link_action` in the core); confirmation before opening, Return and Escape cancel; no system services in the preview's context menu | in place |
+| E4 | The app gains more rights than needed | App Sandbox with user-selected file access and outgoing connections (required by WebKit) only; hardened runtime; no debugger attachment in release builds; CI verifies the exact entitlements | in place |
 | E5 | A4 compromises CI through a pull request (privileged triggers, script injection) | Only `pull_request` triggers; read-only token; no secrets; untrusted values passed through environment variables | in place |
 
 ## Residual risks
@@ -127,5 +127,13 @@ protected by signed commits.
 - Vulnerabilities in macOS, WebKit or the Swift and Rust standard libraries
   are outside the project's control. They are mitigated by sandboxing and by
   keeping toolchains current.
-- Until the preview exists, the sanitizer is the only HTML defense layer
-  that is in place. The web view settings add a second layer in v0.1.
+- **Outgoing connections are allowed by the sandbox.** WebKit's network
+  process refuses to start for a sandboxed app without this permission, even
+  when nothing is loaded from the network, so the preview cannot work
+  without it. The app's own code never connects (checked in CI), and the
+  preview blocks every load in independent ways. Only an attacker who
+  achieves code execution inside WebKit, despite disabled scripts and
+  Lockdown Mode, could send data out; without the permission, the operating
+  system would stop that as well. Accepted because the alternatives (a
+  preview without a web engine, or a separate helper process) would make
+  the planned math, diagrams and PDF export impractical.
