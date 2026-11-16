@@ -87,6 +87,7 @@ milestone), or **accepted** (see residual risks).
 | T2 | A2 changes a file and the app overwrites it silently | System conflict handling for external changes; UI test | in place |
 | T3 | A3 injects code through a dependency or Action | `Cargo.lock`, crates.io only (`cargo-deny`), Actions pinned to commit SHAs, 14-day cooldown for new releases, Dependabot | in place |
 | T4 | Release artifacts are replaced or modified | Built from tagged commits; SHA-256 checksums in the release notes | planned (first beta) |
+| T5 | A click in the preview changes the document in an unintended place, or a document triggers such changes itself (task checkboxes) | Each page carries a random token in its task links; a click is applied only with the token of the shown page and only if the text has not changed since that page was rendered; the core changes exactly the one character between the brackets after checking it; protocol-relative links (`//host`), the only way for a document to reach the preview's internal addresses, are removed by the sanitizer; the change goes through the editor and can be undone. Property test: a toggle changes exactly one byte | in place |
 
 ### Repudiation
 

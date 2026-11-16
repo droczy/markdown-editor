@@ -1,6 +1,17 @@
 import Foundation
 import Observation
 
+/// A rendered preview page and what it was rendered from.
+public struct PreviewPage: Equatable, Sendable {
+    /// The complete HTML page.
+    public let html: String
+    /// The Markdown text the page shows.
+    public let text: String
+    /// The random token in the page's task checkbox links. A click is only
+    /// applied if it carries the token of the page that is shown.
+    public let taskToken: String
+}
+
 /// Keeps the preview in step with the document text.
 ///
 /// Rendering starts after a short pause in typing, so fast typing does not
@@ -10,13 +21,15 @@ import Observation
 @MainActor
 @Observable
 public final class PreviewController {
-    /// Renders Markdown to a complete preview page.
-    public typealias Render = @Sendable (String) async throws(MarkdownRenderer.Failure) -> String
+    /// Renders Markdown (first argument) to a complete preview page whose
+    /// task checkboxes carry the token (second argument).
+    public typealias Render =
+        @Sendable (String, String) async throws(MarkdownRenderer.Failure) -> String
     /// Waits for the given duration; throws if the wait was cancelled.
     public typealias Sleep = @Sendable (Duration) async throws -> Void
 
     /// The last page that rendered successfully, or `nil` before the first.
-    public private(set) var page: String?
+    public private(set) var page: PreviewPage?
 
     /// Why the latest text could not be rendered, or `nil` if it could.
     /// ``page`` keeps the last successful result in the meantime.
@@ -37,8 +50,8 @@ public final class PreviewController {
     /// Creates a controller that renders `delay` after the last change.
     public init(
         delay: Duration = .milliseconds(200),
-        render: @escaping Render = { markdown throws(MarkdownRenderer.Failure) in
-            try await MarkdownRenderer.renderPage(markdown)
+        render: @escaping Render = { markdown, token throws(MarkdownRenderer.Failure) in
+            try await MarkdownRenderer.renderPage(markdown, taskToken: token)
         },
         sleep: @escaping Sleep = { duration in try await Task.sleep(for: duration) }
     ) {
@@ -87,10 +100,14 @@ public final class PreviewController {
         pendingText = nil
         isRendering = true
         let render = render
+        // A new random token for every page, so that a click on a stale page
+        // or a link made up by a document can never toggle a task.
+        let token = UUID().uuidString
         Task { [weak self] in
-            let result: Result<String, MarkdownRenderer.Failure>
+            let result: Result<PreviewPage, MarkdownRenderer.Failure>
             do throws(MarkdownRenderer.Failure) {
-                result = .success(try await render(text))
+                let html = try await render(text, token)
+                result = .success(PreviewPage(html: html, text: text, taskToken: token))
             } catch {
                 result = .failure(error)
             }
@@ -98,7 +115,7 @@ public final class PreviewController {
         }
     }
 
-    private func didRender(_ result: Result<String, MarkdownRenderer.Failure>) {
+    private func didRender(_ result: Result<PreviewPage, MarkdownRenderer.Failure>) {
         isRendering = false
         switch result {
         case .success(let page):

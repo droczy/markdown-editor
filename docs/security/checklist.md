@@ -53,6 +53,7 @@ retired.
 | WEB-3 | The preview never navigates. Link clicks are intercepted and opened externally only for allowed schemes and after confirmation. |
 | WEB-4 | The preview loads nothing from the network. This is tested with a document that references remote resources. |
 | WEB-5 | The preview has no file access beyond the resources it needs. |
+| WEB-6 | Actions in the preview that change the document (task checkboxes) carry a per-page random token, apply only to the unchanged text they were rendered from, change only what they claim to change and can be undone. |
 
 ## Secure coding and architecture
 

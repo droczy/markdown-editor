@@ -14,6 +14,8 @@ public struct MarkdownTextView: NSViewRepresentable {
     let undoManager: UndoManager?
     /// Zoom factor of the text (1 is the system font size).
     let zoom: Double
+    /// Lets the window apply edits such as task toggles (optional).
+    let handle: EditorHandle?
     /// Called after every change of the text, by the user or from outside.
     let onChange: @MainActor (String) -> Void
 
@@ -21,11 +23,12 @@ public struct MarkdownTextView: NSViewRepresentable {
     /// `undoManager`.
     public init(
         text: Binding<String>, undoManager: UndoManager?, zoom: Double = 1,
-        onChange: @escaping @MainActor (String) -> Void
+        handle: EditorHandle? = nil, onChange: @escaping @MainActor (String) -> Void
     ) {
         _text = text
         self.undoManager = undoManager
         self.zoom = zoom
+        self.handle = handle
         self.onChange = onChange
     }
 
@@ -42,6 +45,7 @@ public struct MarkdownTextView: NSViewRepresentable {
         textView.string = text
         context.coordinator.lastText = text
         textView.delegate = context.coordinator
+        handle?.textView = textView
 
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true

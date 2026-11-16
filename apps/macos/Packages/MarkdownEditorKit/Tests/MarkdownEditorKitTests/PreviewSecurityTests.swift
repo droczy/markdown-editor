@@ -285,6 +285,24 @@ struct PreviewCoordinatorTests {
         }
     }
 
+    @Test("A click on a task checkbox is handed to the app as a task link")
+    func taskCheckboxes() async throws {
+        let (webView, coordinator, links) = makePreview()
+        let page = try await MarkdownRenderer.renderPage(
+            "- [ ] first\n- [x] second", taskToken: "test-token")
+        coordinator.show(
+            page.replacingOccurrences(of: "<main>\n", with: "<main>\n<p id=\"tasks\">t</p>"))
+        await webView.waitUntilLoaded(containing: "tasks")
+
+        _ = await webView.evaluate(
+            "document.querySelectorAll('a[role=checkbox]')[1].click()")
+        await eventually("the click was handed over") { links.clicked.count == 1 }
+        #expect(links.clicked.first?.absoluteString == "markdown-preview://task/test-token/1")
+        #expect(
+            await webView.evaluate("return document.querySelectorAll('input:checked').length")
+                as? Int == 1, "the checkbox changed by itself")
+    }
+
     @Test("Clicked links are handed to the app and never navigate")
     func linksAreIntercepted() async throws {
         let (webView, coordinator, links) = makePreview()
