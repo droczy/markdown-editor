@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+# Never run two nightly runs at once; a manual run waits for the scheduled
+# one instead of cancelling it.
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
 env:
   CARGO_TERM_COLOR: always
   # Nightly toolchain for fuzzing, pinned for reproducible builds. Update
@@ -15,6 +21,21 @@ env:
   RUST_NIGHTLY: nightly-2026-10-29
 
 jobs:
+  # New advisories appear independently of our changes: check the locked
+  # dependencies every night, not only when a pull request runs.
+  advisories:
+    name: Advisories (daily)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-deny@0.20.2
+      - run: cargo deny --locked check advisories
+
   fuzz:
     name: Fuzzing (30 minutes)
     runs-on: ubuntu-latest

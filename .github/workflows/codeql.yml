@@ -16,15 +16,20 @@ on:
 permissions:
   contents: read
 
+# A newer commit on the same branch or pull request replaces the running
+# analysis.
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     permissions:
-      contents: read
-      # Upload the results to code scanning.
-      security-events: write
+      contents: read # check out the code
+      security-events: write # upload the results to code scanning
     strategy:
       fail-fast: false
       matrix:

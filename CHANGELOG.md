@@ -72,6 +72,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The GitHub workflows are audited with zizmor 1.31.1 on every pull
+  request (new required check "Workflow security (zizmor)"), and the
+  locked dependencies are checked against the RustSec advisories every
+  night, not only when a pull request runs. CodeQL and nightly runs no
+  longer overlap: a newer commit replaces a running analysis, and nightly
+  runs wait for each other.
 - Code scanning uses an advanced CodeQL setup (`.github/workflows/codeql.yml`)
   that builds the macOS app, so the Swift code is analyzed as well; GitHub's
   default setup could not build it. Actions, Rust and Swift are analyzed
