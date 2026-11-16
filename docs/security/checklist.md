@@ -50,7 +50,7 @@ retired.
 | --- | --- |
 | WEB-1 | JavaScript is disabled in the preview. |
 | WEB-2 | A strict Content Security Policy blocks every source the preview does not need. |
-| WEB-3 | The preview never navigates. Link clicks are intercepted and opened externally only for allowed schemes and after confirmation. |
+| WEB-3 | The preview never navigates and never opens links. Link clicks are intercepted; only `http`, `https` and `mailto` addresses are copied, after checking the scheme of the resolved URL. |
 | WEB-4 | The preview loads nothing from the network. This is tested with a document that references remote resources. |
 | WEB-5 | The preview has no file access beyond the resources it needs. |
 | WEB-6 | Actions in the preview that change the document (task checkboxes) carry a per-page random token, apply only to the unchanged text they were rendered from, change only what they claim to change and can be undone. |

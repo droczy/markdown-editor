@@ -33,7 +33,8 @@ Only the latest release receives security fixes during early development.
   or scripts, and never sends data anywhere. The preview blocks every load
   in independent ways (the sanitizer removes remote addresses; a strict
   Content Security Policy and a content blocker each refuse every request)
-  and never navigates; links open in the browser only after confirmation.
+  and never navigates. Links are never opened: a click copies the address,
+  so that opening it is always a deliberate step in another app.
   The App Sandbox allows outgoing connections only because WebKit, which
   shows the preview, requires it. CI ensures that the app's own code uses no
   networking APIs and the core no networking libraries.
@@ -55,9 +56,9 @@ Only the latest release receives security fixes during early development.
   debugger attachment. CI verifies these properties on every change.
 - **Preview.** Scripts in the page never run, WebKit's Lockdown Mode is on,
   nothing is stored on disk, the context menu offers only copying and
-  looking up, and dropped files are not opened. Links show their full
-  address and real host before anything opens; only `http`, `https` and
-  `mailto` links can be opened.
+  looking up, and dropped files are not opened. A click on an `http`,
+  `https` or `mailto` link copies its address and shows the real host;
+  nothing is handed to another app.
 - **Data integrity.** Files are written atomically and preserved byte for
   byte (encoding, line endings, byte order mark). Files that are not valid
   UTF-8 or larger than 50 MiB are refused instead of being altered. External

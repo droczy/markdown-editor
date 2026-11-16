@@ -1,34 +1,38 @@
 //! Decides what happens when the user clicks a link in the preview.
 //!
-//! The input is the absolute URL the web engine resolved the link to, never
-//! the raw `href`: only after resolution is the scheme known for certain
-//! (for example, `java%09script:x` is a relative link, not a scheme). Only
-//! `http`, `https` and `mailto` may ever leave the app, and only after the
-//! user confirmed it.
+//! The preview never opens links: a click on an `http`, `https` or `mailto`
+//! link copies its address, so that the user can paste it into a browser or
+//! email app. The input is the absolute URL the web engine resolved the
+//! link to, never the raw `href`: only after resolution is the scheme known
+//! for certain (for example, `java%09script:x` is a relative link, not a
+//! scheme).
 
 use crate::page::TASK_LINK_PREFIX;
 use crate::{PAGE_BASE_URL, is_valid_task_token};
 
-/// Longest URL, in bytes, that may be opened. Longer URLs cannot be shown
-/// in full in the confirmation dialog, so they are blocked.
+/// Longest URL, in bytes, that may be copied. Longer URLs are blocked: they
+/// are not real web addresses and could hide something in their length.
 pub const MAX_LINK_BYTES: usize = 4096;
 
 /// What the app does with a clicked link.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LinkAction {
-    /// An `http` or `https` link: open it in the default browser after the
-    /// user confirmed it.
-    OpenInBrowser {
-        /// The host (and port, if any) for the confirmation dialog, without
-        /// user name or password, so a link cannot pretend to lead to a
-        /// different site.
+    /// An `http` or `https` link: copy its address.
+    CopyWebAddress {
+        /// The text to copy: the whole address, printable ASCII only (no
+        /// spaces, line breaks or invisible characters), at most
+        /// [`MAX_LINK_BYTES`] bytes.
+        address: String,
+        /// The host (and port, if any) to show, without user name or
+        /// password, so a link cannot pretend to lead to a different site.
         host: String,
     },
-    /// A `mailto` link: open the default email app after the user confirmed
-    /// it.
-    OpenInEmailApp {
-        /// The recipients as written in the link (may be empty).
-        recipients: String,
+    /// A `mailto` link: copy the email address.
+    CopyEmailAddress {
+        /// The text to copy: the recipients, with percent escapes decoded
+        /// when the result is printable ASCII (otherwise as written). Empty
+        /// if the link has no recipient.
+        address: String,
     },
     /// A click on a task checkbox in the preview: check or uncheck the task
     /// with this index (see [`crate::toggle_task`]), but only if the token
@@ -43,7 +47,7 @@ pub enum LinkAction {
     /// Not supported yet.
     Unsupported,
     /// Anything else (`file:`, other apps' schemes, malformed URLs, overlong
-    /// URLs). Never opened.
+    /// URLs). Neither opened nor copied.
     Blocked,
 }
 
@@ -60,7 +64,10 @@ pub enum LinkAction {
 ///
 /// assert_eq!(
 ///     link_action("https://example.com/page"),
-///     LinkAction::OpenInBrowser { host: "example.com".into() }
+///     LinkAction::CopyWebAddress {
+///         address: "https://example.com/page".into(),
+///         host: "example.com".into(),
+///     }
 /// );
 /// assert_eq!(link_action("file:///etc/passwd"), LinkAction::Blocked);
 /// ```
@@ -77,12 +84,18 @@ pub fn link_action(url: &str) -> LinkAction {
     }
     match scheme.to_ascii_lowercase().as_str() {
         "http" | "https" => match host(rest) {
-            Some(host) => LinkAction::OpenInBrowser { host },
+            Some(host) => LinkAction::CopyWebAddress {
+                address: url.to_owned(),
+                host,
+            },
             None => LinkAction::Blocked,
         },
-        "mailto" => LinkAction::OpenInEmailApp {
-            recipients: rest.split(['?', '#']).next().unwrap_or_default().to_owned(),
-        },
+        "mailto" => {
+            let recipients = rest.split(['?', '#']).next().unwrap_or_default();
+            LinkAction::CopyEmailAddress {
+                address: percent_decoded(recipients).unwrap_or_else(|| recipients.to_owned()),
+            }
+        }
         scheme if is_page_scheme(scheme) => task_link(url).unwrap_or(LinkAction::Unsupported),
         _ => LinkAction::Blocked,
     }
@@ -108,6 +121,32 @@ fn task_link(url: &str) -> Option<LinkAction> {
         token: token.to_owned(),
         index: index.parse().ok()?,
     })
+}
+
+/// `text` with `%XX` escapes decoded, if the result is printable ASCII
+/// without spaces; `None` otherwise (also for malformed escapes).
+fn percent_decoded(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while let Some(&byte) = bytes.get(index) {
+        if byte == b'%' {
+            let digits = bytes.get(index + 1..index + 3)?;
+            if !digits.iter().all(u8::is_ascii_hexdigit) {
+                return None;
+            }
+            decoded.push(u8::from_str_radix(std::str::from_utf8(digits).ok()?, 16).ok()?);
+            index += 3;
+        } else {
+            decoded.push(byte);
+            index += 1;
+        }
+    }
+    if decoded.iter().all(u8::is_ascii_graphic) {
+        String::from_utf8(decoded).ok()
+    } else {
+        None
+    }
 }
 
 /// A URL scheme: an ASCII letter followed by letters, digits, `+`, `-` or
@@ -153,43 +192,116 @@ fn host(rest: &str) -> Option<String> {
 mod tests {
     use super::*;
 
-    fn browser(host: &str) -> LinkAction {
-        LinkAction::OpenInBrowser { host: host.into() }
+    fn host_of(action: &LinkAction) -> Option<&str> {
+        match action {
+            LinkAction::CopyWebAddress { host, .. } => Some(host),
+            _ => None,
+        }
     }
 
-    fn email(recipients: &str) -> LinkAction {
-        LinkAction::OpenInEmailApp {
-            recipients: recipients.into(),
+    fn email(address: &str) -> LinkAction {
+        LinkAction::CopyEmailAddress {
+            address: address.into(),
         }
     }
 
     #[test]
-    fn web_links_open_in_the_browser() {
-        assert_eq!(link_action("https://example.com/"), browser("example.com"));
-        assert_eq!(link_action("http://example.com"), browser("example.com"));
+    fn web_links_are_copied_with_their_real_host() {
         assert_eq!(
-            link_action("https://example.com:8443/a?b=c#d"),
-            browser("example.com:8443")
+            host_of(&link_action("https://example.com/")),
+            Some("example.com")
         );
-        assert_eq!(link_action("HTTPS://example.com/"), browser("example.com"));
-        assert_eq!(link_action("https://[::1]:8080/"), browser("[::1]:8080"));
-        assert_eq!(link_action("https://[::1]/"), browser("[::1]"));
         assert_eq!(
-            link_action("https://xn--80ak6aa92e.com/"),
-            browser("xn--80ak6aa92e.com")
+            host_of(&link_action("http://example.com")),
+            Some("example.com")
+        );
+        assert_eq!(
+            host_of(&link_action("https://example.com:8443/a?b=c#d")),
+            Some("example.com:8443")
+        );
+        assert_eq!(
+            host_of(&link_action("HTTPS://example.com/")),
+            Some("example.com")
+        );
+        assert_eq!(
+            host_of(&link_action("https://[::1]:8080/")),
+            Some("[::1]:8080")
+        );
+        assert_eq!(host_of(&link_action("https://[::1]/")), Some("[::1]"));
+        assert_eq!(
+            host_of(&link_action("https://xn--80ak6aa92e.com/")),
+            Some("xn--80ak6aa92e.com")
         );
     }
 
     #[test]
     fn user_information_is_not_shown_as_the_host() {
         assert_eq!(
-            link_action("https://www.apple.com@evil.example/"),
-            browser("evil.example")
+            host_of(&link_action("https://www.apple.com@evil.example/")),
+            Some("evil.example")
         );
         assert_eq!(
-            link_action("https://user:secret@example.com:1/"),
-            browser("example.com:1")
+            host_of(&link_action("https://user:secret@example.com:1/")),
+            Some("example.com:1")
         );
+    }
+
+    #[test]
+    fn web_links_copy_the_whole_address() {
+        assert_eq!(
+            link_action("https://user@example.com:8443/a?b=c#d"),
+            LinkAction::CopyWebAddress {
+                address: "https://user@example.com:8443/a?b=c#d".into(),
+                host: "example.com:8443".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn email_addresses_are_decoded_only_to_printable_text() {
+        assert_eq!(
+            link_action("mailto:a%40example.com"),
+            email("a@example.com")
+        );
+        assert_eq!(
+            link_action("mailto:%61@example.com"),
+            email("a@example.com")
+        );
+        // Decoding would produce a space, a line break or non-ASCII text:
+        // copy the address as written instead.
+        assert_eq!(
+            link_action("mailto:a%20b@example.com"),
+            email("a%20b@example.com")
+        );
+        assert_eq!(
+            link_action("mailto:a%0Ab@example.com"),
+            email("a%0Ab@example.com")
+        );
+        assert_eq!(
+            link_action("mailto:%C3%A4@example.com"),
+            email("%C3%A4@example.com")
+        );
+        // Malformed escapes are kept as written.
+        assert_eq!(
+            link_action("mailto:a%4@example.com"),
+            email("a%4@example.com")
+        );
+        assert_eq!(
+            link_action("mailto:a%+1@example.com"),
+            email("a%+1@example.com")
+        );
+        assert_eq!(link_action("mailto:a%"), email("a%"));
+    }
+
+    #[test]
+    fn percent_decoding_requires_two_hex_digits() {
+        assert_eq!(percent_decoded("a%41b"), Some("aAb".into()));
+        assert_eq!(percent_decoded("%7e"), Some("~".into()));
+        assert_eq!(percent_decoded(""), Some(String::new()));
+        assert_eq!(percent_decoded("%4"), None);
+        assert_eq!(percent_decoded("%4g"), None);
+        assert_eq!(percent_decoded("%20"), None);
+        assert_eq!(percent_decoded("%7F"), None);
     }
 
     #[test]
@@ -202,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn email_links_open_the_email_app() {
+    fn email_links_copy_the_address() {
         assert_eq!(link_action("mailto:a@example.com"), email("a@example.com"));
         assert_eq!(
             link_action("mailto:a@example.com,b@example.com?subject=hi"),
@@ -311,7 +423,7 @@ mod tests {
     fn overlong_urls_are_blocked() {
         let prefix = "https://example.com/";
         let longest = format!("{prefix}{}", "a".repeat(MAX_LINK_BYTES - prefix.len()));
-        assert_eq!(link_action(&longest), browser("example.com"));
+        assert_eq!(host_of(&link_action(&longest)), Some("example.com"));
         assert_eq!(link_action(&format!("{longest}a")), LinkAction::Blocked);
     }
 

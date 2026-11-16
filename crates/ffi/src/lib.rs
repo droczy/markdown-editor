@@ -119,15 +119,17 @@ pub fn page_content_security_policy() -> String {
 /// [`markdown_editor_core::LinkAction`].
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum LinkAction {
-    /// Open in the default browser after confirmation.
-    OpenInBrowser {
-        /// Host (and port) to show in the confirmation dialog.
+    /// Copy the web address (the preview never opens links).
+    CopyWebAddress {
+        /// The text to copy: the whole address, printable ASCII only.
+        address: String,
+        /// Host (and port) to show.
         host: String,
     },
-    /// Open the default email app after confirmation.
-    OpenInEmailApp {
-        /// Recipients as written in the link (may be empty).
-        recipients: String,
+    /// Copy the email address.
+    CopyEmailAddress {
+        /// The text to copy (may be empty).
+        address: String,
     },
     /// Check or uncheck the task with `index`, if `token` belongs to the
     /// shown page.
@@ -149,11 +151,11 @@ pub enum LinkAction {
 #[must_use]
 pub fn link_action(url: &str) -> LinkAction {
     match markdown_editor_core::link_action(url) {
-        markdown_editor_core::LinkAction::OpenInBrowser { host } => {
-            LinkAction::OpenInBrowser { host }
+        markdown_editor_core::LinkAction::CopyWebAddress { address, host } => {
+            LinkAction::CopyWebAddress { address, host }
         }
-        markdown_editor_core::LinkAction::OpenInEmailApp { recipients } => {
-            LinkAction::OpenInEmailApp { recipients }
+        markdown_editor_core::LinkAction::CopyEmailAddress { address } => {
+            LinkAction::CopyEmailAddress { address }
         }
         markdown_editor_core::LinkAction::ToggleTask { token, index } => LinkAction::ToggleTask {
             token,
@@ -285,14 +287,15 @@ mod tests {
     fn link_actions_match_the_core() {
         assert_eq!(
             link_action("https://example.com/"),
-            LinkAction::OpenInBrowser {
+            LinkAction::CopyWebAddress {
+                address: "https://example.com/".into(),
                 host: "example.com".into()
             }
         );
         assert_eq!(
             link_action("mailto:a@example.com"),
-            LinkAction::OpenInEmailApp {
-                recipients: "a@example.com".into()
+            LinkAction::CopyEmailAddress {
+                address: "a@example.com".into()
             }
         );
         assert_eq!(

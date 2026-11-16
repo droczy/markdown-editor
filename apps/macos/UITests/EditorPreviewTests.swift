@@ -13,8 +13,9 @@ final class EditorPreviewTests: XCTestCase {
         let app = XCUIApplication()
         self.app = app
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
-        // Skip the first-launch privacy window.
-        app.launchArguments += ["-privacyInfoShown", "YES"]
+        // Skip the first-launch privacy window and the one-time explanation
+        // of copied links.
+        app.launchArguments += ["-privacyInfoShown", "YES", "-linkCopyHintShown", "YES"]
         app.launch()
         // Dismiss the open panel DocumentGroup may show at launch and start
         // with a new, empty document.
@@ -100,45 +101,52 @@ final class EditorPreviewTests: XCTestCase {
         XCTAssertEqual(editor.value as? String, "abc")
     }
 
-    func testWebLinkAsksAndKeyboardCancels() {
+    /// The notice shown after a click on a link.
+    private var notice: XCUIElement {
+        launchedApp.descendants(matching: .any)["linkNotice"].firstMatch
+    }
+
+    /// Replaces the editor's text with the clipboard and returns it. Pasting
+    /// shows what a click copied without reading the clipboard directly.
+    private func pastedClipboard() -> String? {
+        editor.click()
+        launchedApp.typeKey("a", modifierFlags: .command)
+        launchedApp.typeKey("v", modifierFlags: .command)
+        return editor.value as? String
+    }
+
+    func testWebLinkIsCopiedNotOpened() {
         let link = preview.links["Example"]
         type("[Example](https://example.com/page)", thenWaitFor: link)
 
         link.click()
-        let sheet = linkSheet(containing: "example.com")
-        XCTAssertTrue(sheet.buttons["Open"].exists)
-        launchedApp.typeKey(.return, modifierFlags: [])
-        waitUntilGone(sheet)
-
-        link.click()
-        let again = linkSheet(containing: "https://example.com/page")
-        launchedApp.typeKey(.escape, modifierFlags: [])
-        waitUntilGone(again)
-
-        link.click()
-        let third = linkSheet(containing: "example.com")
-        third.buttons["Cancel"].click()
-        waitUntilGone(third)
-        XCTAssertTrue(launchedApp.state == .runningForeground)
+        XCTAssertTrue(notice.waitForExistence(timeout: 10), "no notice")
+        XCTAssertTrue(notice.label.contains("example.com"), "notice: \(notice.label)")
+        XCTAssertFalse(launchedApp.sheets.firstMatch.exists, "a dialog appeared")
+        XCTAssertEqual(launchedApp.state, .runningForeground, "another app came to the front")
+        XCTAssertEqual(pastedClipboard(), "https://example.com/page")
     }
 
-    func testEmailLinkAsks() {
+    func testEmailLinkCopiesOnlyTheAddress() {
         let link = preview.links["Mail"]
-        type("[Mail](mailto:someone@example.com)", thenWaitFor: link)
+        type("[Mail](mailto:someone@example.com?subject=Hi)", thenWaitFor: link)
+
         link.click()
-        let sheet = linkSheet(containing: "someone@example.com")
-        sheet.buttons["Cancel"].click()
-        waitUntilGone(sheet)
+        XCTAssertTrue(notice.waitForExistence(timeout: 10), "no notice")
+        XCTAssertEqual(pastedClipboard(), "someone@example.com")
     }
 
-    func testRelativeLinkExplainsInsteadOfOpening() {
+    func testRelativeLinkCopiesNothing() {
         let link = preview.links["Other"]
         type("[Other](other.md)", thenWaitFor: link)
+        // Put known text on the clipboard first.
+        launchedApp.typeKey("a", modifierFlags: .command)
+        launchedApp.typeKey("c", modifierFlags: .command)
+
         link.click()
-        let sheet = linkSheet(containing: "not supported yet")
-        XCTAssertFalse(sheet.buttons["Open"].exists)
-        sheet.buttons["OK"].click()
-        waitUntilGone(sheet)
+        XCTAssertTrue(notice.waitForExistence(timeout: 10), "no notice")
+        XCTAssertTrue(notice.label.contains("not supported yet"), "notice: \(notice.label)")
+        XCTAssertEqual(pastedClipboard(), "[Other](other.md)", "the clipboard changed")
     }
 
     func testContextMenuOffersOnlySafeItems() throws {
