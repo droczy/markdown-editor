@@ -41,9 +41,7 @@ struct TextZoomTests {
     @MainActor
     @Test("The editor's font scales with the zoom")
     func editorFont() {
-        let textView = NSTextView(usingTextLayoutManager: true)
-        MarkdownTextView.configure(textView)
-        textView.string = "text"
+        let textView = MarkdownTextView.makeTextView(text: "text")
         MarkdownTextView.applyFont(to: textView, zoom: 2)
         let size = NSFont.systemFontSize * 2
         #expect(textView.font?.pointSize == size)
