@@ -294,8 +294,10 @@ struct PreviewCoordinatorTests {
         _ = await webView.evaluate(
             "for (const link of document.querySelectorAll('a')) { link.click() }")
         await eventually("all links were handed over") { links.clicked.count == 4 }
+        // The policy decisions arrive asynchronously, so their order varies
+        // (the same-document `#top` is sometimes decided first).
         #expect(
-            links.clicked.map(\.absoluteString) == [
+            Set(links.clicked.map(\.absoluteString)) == [
                 "https://example.com/a",
                 "mailto:a@example.com",
                 "markdown-preview://document/other.md",
