@@ -49,6 +49,82 @@ pub fn render_html(markdown: &str) -> Result<String, RenderError> {
     markdown_editor_core::render_html(markdown).map_err(RenderError::from)
 }
 
+/// Renders untrusted Markdown to a complete HTML page for the preview. See
+/// [`markdown_editor_core::render_page`].
+///
+/// # Errors
+///
+/// Returns [`RenderError`] if the document exceeds a resource limit.
+#[uniffi::export]
+pub fn render_page(markdown: &str) -> Result<String, RenderError> {
+    markdown_editor_core::render_page(markdown).map_err(RenderError::from)
+}
+
+/// Base URL the preview page must be loaded with.
+#[uniffi::export]
+#[must_use]
+pub fn page_base_url() -> String {
+    markdown_editor_core::PAGE_BASE_URL.to_owned()
+}
+
+/// Stylesheet embedded in the preview page.
+#[uniffi::export]
+#[must_use]
+pub fn page_stylesheet() -> String {
+    markdown_editor_core::PAGE_STYLESHEET.to_owned()
+}
+
+/// Base64-encoded SHA-256 hash of [`page_stylesheet`].
+#[uniffi::export]
+#[must_use]
+pub fn page_stylesheet_hash() -> String {
+    markdown_editor_core::PAGE_STYLESHEET_HASH.to_owned()
+}
+
+/// Content Security Policy of the preview page.
+#[uniffi::export]
+#[must_use]
+pub fn page_content_security_policy() -> String {
+    markdown_editor_core::PAGE_CONTENT_SECURITY_POLICY.to_owned()
+}
+
+/// What the app does with a clicked link. See
+/// [`markdown_editor_core::LinkAction`].
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum LinkAction {
+    /// Open in the default browser after confirmation.
+    OpenInBrowser {
+        /// Host (and port) to show in the confirmation dialog.
+        host: String,
+    },
+    /// Open the default email app after confirmation.
+    OpenInEmailApp {
+        /// Recipients as written in the link (may be empty).
+        recipients: String,
+    },
+    /// A relative link to another file or a position in the document.
+    Unsupported,
+    /// Never opened.
+    Blocked,
+}
+
+/// Decides what to do with a click on a link that the web engine resolved
+/// to `url`. See [`markdown_editor_core::link_action`].
+#[uniffi::export]
+#[must_use]
+pub fn link_action(url: &str) -> LinkAction {
+    match markdown_editor_core::link_action(url) {
+        markdown_editor_core::LinkAction::OpenInBrowser { host } => {
+            LinkAction::OpenInBrowser { host }
+        }
+        markdown_editor_core::LinkAction::OpenInEmailApp { recipients } => {
+            LinkAction::OpenInEmailApp { recipients }
+        }
+        markdown_editor_core::LinkAction::Unsupported => LinkAction::Unsupported,
+        markdown_editor_core::LinkAction::Blocked => LinkAction::Blocked,
+    }
+}
+
 /// Largest accepted document size in bytes.
 #[uniffi::export]
 #[must_use]
@@ -132,6 +208,55 @@ mod tests {
             render_html(markdown),
             Ok(markdown_editor_core::render_html(markdown).unwrap())
         );
+    }
+
+    #[test]
+    fn renders_pages_like_the_core() {
+        let markdown = "# Title";
+        assert_eq!(
+            render_page(markdown),
+            Ok(markdown_editor_core::render_page(markdown).unwrap())
+        );
+        let markdown = "a".repeat(markdown_editor_core::MAX_INPUT_BYTES + 1);
+        assert!(matches!(
+            render_page(&markdown),
+            Err(RenderError::InputTooLarge { .. })
+        ));
+    }
+
+    #[test]
+    fn page_constants_match_the_core() {
+        assert_eq!(page_base_url(), markdown_editor_core::PAGE_BASE_URL);
+        assert_eq!(page_stylesheet(), markdown_editor_core::PAGE_STYLESHEET);
+        assert_eq!(
+            page_stylesheet_hash(),
+            markdown_editor_core::PAGE_STYLESHEET_HASH
+        );
+        assert_eq!(
+            page_content_security_policy(),
+            markdown_editor_core::PAGE_CONTENT_SECURITY_POLICY
+        );
+    }
+
+    #[test]
+    fn link_actions_match_the_core() {
+        assert_eq!(
+            link_action("https://example.com/"),
+            LinkAction::OpenInBrowser {
+                host: "example.com".into()
+            }
+        );
+        assert_eq!(
+            link_action("mailto:a@example.com"),
+            LinkAction::OpenInEmailApp {
+                recipients: "a@example.com".into()
+            }
+        );
+        assert_eq!(
+            link_action("markdown-preview://document/a.md"),
+            LinkAction::Unsupported
+        );
+        assert_eq!(link_action("file:///"), LinkAction::Blocked);
     }
 
     #[test]

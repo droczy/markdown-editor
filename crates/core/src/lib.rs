@@ -17,10 +17,19 @@
 //!    Remote and absolute image sources are removed, because the application
 //!    must never load anything from the network.
 //!
-//! The preview must additionally disable JavaScript and enforce a strict
-//! Content Security Policy; this crate does not rely on that.
+//! The preview shows the result as a complete page from [`render_page`],
+//! whose Content Security Policy forms a third layer. The platform must
+//! additionally disable JavaScript and block navigation; clicked links are
+//! checked with [`link_action`]. The first two layers do not rely on that.
 
+mod link;
+mod page;
 mod sanitize;
+
+pub use link::{LinkAction, MAX_LINK_BYTES, link_action};
+pub use page::{
+    PAGE_BASE_URL, PAGE_CONTENT_SECURITY_POLICY, PAGE_STYLESHEET, PAGE_STYLESHEET_HASH, render_page,
+};
 
 use std::fmt;
 

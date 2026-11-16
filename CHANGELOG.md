@@ -48,6 +48,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First full security review (phase 2): report in
   `docs/security/reviews/2026-11-phase-2.md`.
 - The README explains autosave and document versions.
+- Editor and preview side by side in the macOS app, each taking half of the
+  window. The editor (`NSTextView`, TextKit 2, system font) never changes
+  text on its own: smart quotes and dashes, text replacement, spelling
+  correction, link detection, inline predictions and writing tools are off.
+  Undo works per typing step. The preview updates after a short pause in
+  typing, renders at most once at a time, keeps its scroll position, follows
+  the light or dark appearance and shows a notice, with the last result
+  dimmed, when a document is too large or too complex to render.
+- Zoom for editor and preview together: View > Zoom In (⌘+), Zoom Out (⌘−)
+  and Actual Size (⌘0), in even steps of about 12 % from 50 % to 283 %,
+  kept across launches.
+- "Privacy and Permissions" window, shown once at the first launch and
+  later from the Help menu: which permissions the app has, why, and what it
+  never does. macOS does not ask the user for these permissions itself.
+- Core functions `render_page`, which wraps the sanitized HTML in the
+  preview page (Content Security Policy and stylesheet), and `link_action`,
+  which decides what a click on a link does after the web engine resolved
+  it; both are available to Swift through the FFI crate.
+- `scripts/check-no-network.sh` (run in CI) fails if the app's Swift code
+  uses networking or URL loading APIs, or hands URLs to other apps outside
+  the link confirmation.
 
 ### Changed
 
@@ -56,6 +77,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default setup could not build it. Actions, Rust and Swift are analyzed
   with the `security-extended` queries on every pull request, on `main` and
   weekly.
+- The macOS app's sandbox allows outgoing connections. WebKit requires this
+  permission for the preview even though nothing is loaded from the
+  network; the app's own code still never connects (see *Security*).
+- The document model is a reference type, so that the editor's undo steps
+  are the only ones and mark the document as edited.
 - CI hardening: every job has a timeout; fuzzing uses a pinned nightly
   toolchain and fails on any input that takes longer than 10 seconds; the
   CI tools cargo-deny, cargo-llvm-cov, cargo-fuzz and cargo-mutants are
@@ -75,6 +101,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- The preview is locked down in independent layers: a Content Security
+  Policy that allows nothing but the preview's own stylesheet, a content
+  blocker that refuses every load, a navigation policy that cancels every
+  navigation, JavaScript of the page disabled, WebKit's Lockdown Mode,
+  website data kept in memory only, no link previews, no dropped files, and
+  a context menu without system services. Tests load a page with dozens of
+  ways to reach a local server and run scripts: each of the policy and the
+  content blocker alone stops all of them.
+- Links from the preview open only after confirmation. The dialog shows the
+  full address and the real host (without user name or password); Return
+  and Escape cancel. Only `http`, `https` and `mailto` links can be opened;
+  the scheme is checked after the link was resolved, so relative links such
+  as `java%09script:` can never act as a scheme.
+- Networking crates (HTTP clients, TLS, async I/O runtimes) are banned in
+  `deny.toml`.
 - Rendering time now grows linearly with the input size, also for long
   paragraphs, code blocks, link targets, titles and image descriptions
   full of characters such as `&`, `°` or no-break spaces (denial of

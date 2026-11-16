@@ -4,11 +4,23 @@ import UniformTypeIdentifiers
 
 @testable import MarkdownEditorKit
 
+@MainActor
 @Suite("MarkdownDocument")
 struct MarkdownDocumentTests {
     @Test("New documents are empty")
     func newDocumentIsEmpty() {
         #expect(MarkdownDocument().text.isEmpty)
+    }
+
+    @Test("Saving reads the latest text from any thread (autosave runs in the background)")
+    func snapshotFromBackgroundThread() async throws {
+        let document = MarkdownDocument(text: "first")
+        document.text = "second\r\n"
+        let snapshot = try await Task.detached {
+            try document.snapshot(contentType: .markdownText)
+        }.value
+        #expect(snapshot == Data("second\r\n".utf8))
+        #expect(snapshot == document.data())
     }
 
     @Test(

@@ -80,9 +80,17 @@ targets:
       path: App/MarkdownEditor.entitlements
       properties:
         # Sandbox: access only to files the user explicitly opens or saves.
-        # No network entitlement: the app is completely offline.
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-write: true
+        # Outgoing connections: required by WebKit, whose network process
+        # refuses to start for a sandboxed app without it, even when nothing
+        # is loaded from the network. The app itself never connects: the
+        # preview blocks every load (sanitizer, Content Security Policy,
+        # content blocker, navigation policy), and CI forbids networking
+        # APIs in the app's code and networking crates in the core
+        # (scripts/check-no-network.sh, deny.toml). See
+        # docs/security/threat-model.md, I1.
+        com.apple.security.network.client: true
 
   MarkdownEditorUITests:
     type: bundle.ui-testing

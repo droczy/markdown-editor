@@ -68,7 +68,7 @@ retired.
 
 | ID | Requirement |
 | --- | --- |
-| CFG-1 | The app runs in the App Sandbox with exactly the documented entitlements: user-selected files, read and write, and nothing else. |
+| CFG-1 | The app runs in the App Sandbox with exactly the documented entitlements: user-selected files (read and write) and outgoing connections, which WebKit requires, and nothing else. |
 | CFG-2 | The hardened runtime is enabled, and release builds do not allow debugger attachment. |
 | CFG-3 | The app loads no third-party dynamic libraries. |
 | CFG-4 | CI verifies CFG-1 to CFG-3 on every change. |
@@ -77,7 +77,7 @@ retired.
 
 | ID | Requirement |
 | --- | --- |
-| DATA-1 | The app makes no network connections and collects no telemetry. |
+| DATA-1 | The app makes no network connections and collects no telemetry. Its code uses no networking APIs and the core no networking crates (checked in CI). |
 | DATA-2 | Document content is never logged. |
 | DATA-3 | How autosave and document versions retain content is documented. |
 

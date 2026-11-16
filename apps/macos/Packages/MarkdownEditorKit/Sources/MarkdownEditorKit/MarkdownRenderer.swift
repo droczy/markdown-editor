@@ -50,6 +50,26 @@ public enum MarkdownRenderer {
     /// Largest syntax tree, in nodes, that can be rendered.
     public static let maxNodes: UInt64 = MarkdownEditorCore.maxNodes()
 
+    /// Base URL the preview page must be loaded with. Relative links resolve
+    /// against it, which tells them apart from links to websites.
+    public static let pageBaseURL: URL = {
+        guard let url = URL(string: pageBaseUrl()) else {
+            preconditionFailure("the core's page base URL is not a valid URL")
+        }
+        return url
+    }()
+
+    /// Content Security Policy of the preview page.
+    public static let pageContentSecurityPolicy: String =
+        MarkdownEditorCore
+        .pageContentSecurityPolicy()
+
+    /// Stylesheet embedded in the preview page.
+    static let pageStylesheet: String = MarkdownEditorCore.pageStylesheet()
+
+    /// Base64-encoded SHA-256 hash of ``pageStylesheet`` (as in the policy).
+    static let pageStylesheetHash: String = MarkdownEditorCore.pageStylesheetHash()
+
     /// Renders `markdown` off the calling actor, so that large documents
     /// never block the user interface.
     @concurrent
@@ -57,10 +77,22 @@ public enum MarkdownRenderer {
         try renderSynchronously(markdown)
     }
 
+    /// Renders `markdown` to a complete HTML page for the preview, off the
+    /// calling actor. The page carries a strict Content Security Policy and
+    /// must be loaded with ``pageBaseURL``.
+    @concurrent
+    public static func renderPage(_ markdown: String) async throws(Failure) -> String {
+        try convertingErrors { try MarkdownEditorCore.renderPage(markdown: markdown) }
+    }
+
     /// Renders `markdown` on the current thread.
     public static func renderSynchronously(_ markdown: String) throws(Failure) -> String {
+        try convertingErrors { try renderHtml(markdown: markdown) }
+    }
+
+    private static func convertingErrors(_ body: () throws -> String) throws(Failure) -> String {
         do {
-            return try renderHtml(markdown: markdown)
+            return try body()
         } catch let error as RenderError {
             switch error {
             case .InputTooLarge(let size, let limit):

@@ -1,0 +1,214 @@
+import XCTest
+
+/// End-to-end tests of the editor and the preview in a new document.
+///
+/// Main-actor isolated as a whole: UI automation APIs must run on the main
+/// thread.
+@MainActor
+final class EditorPreviewTests: XCTestCase {
+    private var app = XCUIApplication?.none
+
+    override func setUp() async throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        self.app = app
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
+        // Skip the first-launch privacy window.
+        app.launchArguments += ["-privacyInfoShown", "YES"]
+        app.launch()
+        // Dismiss the open panel DocumentGroup may show at launch and start
+        // with a new, empty document.
+        app.typeKey(.escape, modifierFlags: [])
+        app.typeKey("n", modifierFlags: .command)
+    }
+
+    override func tearDown() async throws {
+        app?.terminate()
+    }
+
+    // MARK: - Helpers
+
+    private var launchedApp: XCUIApplication {
+        guard let app else {
+            preconditionFailure("setUp did not launch the app")
+        }
+        return app
+    }
+
+    private var editor: XCUIElement {
+        launchedApp.textViews["editor"].firstMatch
+    }
+
+    private var preview: XCUIElement {
+        launchedApp.webViews.firstMatch
+    }
+
+    /// Types `text` into the empty editor and waits until the preview shows
+    /// `element`.
+    private func type(_ text: String, thenWaitFor element: XCUIElement) {
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "no editor")
+        editor.click()
+        editor.typeText(text)
+        XCTAssertTrue(element.waitForExistence(timeout: 10), "preview did not show \(element)")
+    }
+
+    /// The sheet asking about a link, once it is shown.
+    private func linkSheet(containing fragment: String) -> XCUIElement {
+        let sheet = launchedApp.sheets.firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 10), "no dialog for the link")
+        let predicate = NSPredicate(
+            format: "value CONTAINS[c] %@ OR label CONTAINS[c] %@", fragment, fragment)
+        XCTAssertTrue(
+            sheet.staticTexts.matching(predicate).firstMatch.exists,
+            "dialog does not mention \(fragment)")
+        return sheet
+    }
+
+    private func waitUntilGone(_ element: XCUIElement) {
+        let gone = expectation(
+            for: NSPredicate(format: "exists == false"), evaluatedWith: element)
+        wait(for: [gone], timeout: 10)
+    }
+
+    // MARK: - Tests
+
+    func testEditorAndPreviewShareTheWindowEqually() {
+        type("# Halves", thenWaitFor: preview.staticTexts["Halves"])
+        let editorFrame = editor.frame
+        let previewFrame = preview.frame
+        XCTAssertLessThanOrEqual(editorFrame.maxX, previewFrame.minX + 2, "editor is not left")
+        XCTAssertEqual(editorFrame.width, previewFrame.width, accuracy: 20)
+    }
+
+    func testTypingUpdatesThePreview() {
+        type("# Preview Title\n\nSome *text*.", thenWaitFor: preview.staticTexts["Preview Title"])
+        editor.typeText("\n\n## Second")
+        XCTAssertTrue(preview.staticTexts["Second"].waitForExistence(timeout: 10))
+    }
+
+    func testTextStaysExactlyAsTyped() {
+        let text = "\"quotes\" -- 'single' (c) teh ..."
+        type(text, thenWaitFor: preview.staticTexts.firstMatch)
+        XCTAssertEqual(editor.value as? String, text)
+    }
+
+    func testUndoAndRedoTyping() {
+        type("abc", thenWaitFor: preview.staticTexts["abc"])
+        launchedApp.typeKey("z", modifierFlags: .command)
+        XCTAssertEqual(editor.value as? String, "")
+        launchedApp.typeKey("z", modifierFlags: [.command, .shift])
+        XCTAssertEqual(editor.value as? String, "abc")
+    }
+
+    func testWebLinkAsksAndKeyboardCancels() {
+        let link = preview.links["Example"]
+        type("[Example](https://example.com/page)", thenWaitFor: link)
+
+        link.click()
+        let sheet = linkSheet(containing: "example.com")
+        XCTAssertTrue(sheet.buttons["Open"].exists)
+        launchedApp.typeKey(.return, modifierFlags: [])
+        waitUntilGone(sheet)
+
+        link.click()
+        let again = linkSheet(containing: "https://example.com/page")
+        launchedApp.typeKey(.escape, modifierFlags: [])
+        waitUntilGone(again)
+
+        link.click()
+        let third = linkSheet(containing: "example.com")
+        third.buttons["Cancel"].click()
+        waitUntilGone(third)
+        XCTAssertTrue(launchedApp.state == .runningForeground)
+    }
+
+    func testEmailLinkAsks() {
+        let link = preview.links["Mail"]
+        type("[Mail](mailto:someone@example.com)", thenWaitFor: link)
+        link.click()
+        let sheet = linkSheet(containing: "someone@example.com")
+        sheet.buttons["Cancel"].click()
+        waitUntilGone(sheet)
+    }
+
+    func testRelativeLinkExplainsInsteadOfOpening() {
+        let link = preview.links["Other"]
+        type("[Other](other.md)", thenWaitFor: link)
+        link.click()
+        let sheet = linkSheet(containing: "not supported yet")
+        XCTAssertFalse(sheet.buttons["Open"].exists)
+        sheet.buttons["OK"].click()
+        waitUntilGone(sheet)
+    }
+
+    func testContextMenuOffersOnlySafeItems() throws {
+        let link = preview.links["Context"]
+        type("[Context](https://example.com/)", thenWaitFor: link)
+        link.rightClick()
+        XCTAssertTrue(
+            launchedApp.menuItems["WKMenuItemIdentifierCopyLink"].waitForExistence(timeout: 10),
+            "no context menu with Copy Link")
+
+        // One snapshot of the whole tree instead of a query per item (the
+        // menu bar alone has dozens of items).
+        func menus(in element: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
+            (element.elementType == .menu ? [element] : []) + element.children.flatMap(menus)
+        }
+        let contextMenu = try XCTUnwrap(
+            menus(in: try launchedApp.snapshot()).first { menu in
+                menu.children.contains { $0.identifier == "WKMenuItemIdentifierCopyLink" }
+            })
+        let items = contextMenu.children
+            .filter { $0.elementType == .menuItem && !($0.identifier.isEmpty && $0.title.isEmpty) }
+            .map { "\($0.identifier)|\($0.title)" }
+        launchedApp.typeKey(.escape, modifierFlags: [])
+
+        let allowedIdentifiers = [
+            "WKMenuItemIdentifierCopy|", "WKMenuItemIdentifierCopyLink|",
+            "WKMenuItemIdentifierLookUp|",
+        ]
+        let unexpected = items.filter { item in
+            !allowedIdentifiers.contains { item.hasPrefix($0) }
+        }
+        XCTAssertTrue(unexpected.isEmpty, "unexpected menu items: \(unexpected) of \(items)")
+    }
+
+    func testZoomChangesEditorAndPreview() {
+        let heading = preview.staticTexts["Zoom"].firstMatch
+        type("# Zoom", thenWaitFor: heading)
+        // The zoom level is kept across launches: start at the normal size.
+        // (A launch argument would pin the value for the whole run.)
+        launchedApp.typeKey("0", modifierFlags: .command)
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        let normal = heading.frame.height
+
+        launchedApp.typeKey("+", modifierFlags: .command)
+        XCTAssertTrue(
+            waitUntil { heading.frame.height > normal * 1.05 }, "preview did not zoom in")
+        launchedApp.typeKey("-", modifierFlags: .command)
+        launchedApp.typeKey("-", modifierFlags: .command)
+        XCTAssertTrue(
+            waitUntil { heading.frame.height < normal * 0.95 }, "preview did not zoom out")
+        launchedApp.typeKey("0", modifierFlags: .command)
+        XCTAssertTrue(
+            waitUntil { abs(heading.frame.height - normal) < 1 }, "zoom was not reset")
+        XCTAssertEqual(editor.value as? String, "# Zoom", "zooming changed the text")
+    }
+
+    /// Polls `condition` for up to ten seconds.
+    private func waitUntil(_ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline {
+            if condition() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return false
+    }
+
+    func testPreviewExplainsDocumentsItCannotRender() {
+        // Nested deeper than the renderer's limit of 1 000 levels.
+        let tooDeep = String(repeating: ">", count: 1_001) + "x"
+        type(tooDeep, thenWaitFor: launchedApp.descendants(matching: .any)["previewError"])
+        XCTAssertEqual(editor.value as? String, tooDeep, "editor must keep the text")
+    }
+}

@@ -21,8 +21,10 @@ if [[ "$signature_info" =~ flags=[^[:space:]]*runtime ]]; then pass "hardened ru
 archs="$(lipo -archs "$executable")"
 if [[ "$archs" == "arm64" ]]; then pass "arm64 only"; else fail "unexpected architectures: $archs"; fi
 
-# Entitlements are exactly the expected set: sandbox and user-selected files.
-# Anything else (network, debugger attachment, JIT, …) fails the check.
+# Entitlements are exactly the expected set: sandbox, user-selected files
+# and outgoing connections (required by WebKit for the preview; the app's
+# code is checked by scripts/check-no-network.sh). Anything else (server
+# sockets, debugger attachment, JIT, …) fails the check.
 entitlements="$(mktemp)"
 trap 'rm -f "$entitlements"' EXIT
 codesign -d --entitlements - --xml "$app" > "$entitlements" 2>/dev/null || true
@@ -30,10 +32,11 @@ entitlement() { /usr/libexec/PlistBuddy -c "Print :$1" "$entitlements" 2>/dev/nu
 # PlistBuddy prints one "key = value" line per entry, including nested ones,
 # so any additional entitlement changes the count.
 count="$(/usr/libexec/PlistBuddy -c Print "$entitlements" 2>/dev/null | grep -c ' = ' || true)"
-if [[ "$count" == 2 &&
+if [[ "$count" == 3 &&
     "$(entitlement com.apple.security.app-sandbox)" == true &&
-    "$(entitlement com.apple.security.files.user-selected.read-write)" == true ]]; then
-    pass "entitlements exactly sandbox + user-selected files"
+    "$(entitlement com.apple.security.files.user-selected.read-write)" == true &&
+    "$(entitlement com.apple.security.network.client)" == true ]]; then
+    pass "entitlements exactly sandbox + user-selected files + outgoing connections (WebKit)"
 else
     fail "unexpected entitlements:"$'\n'"$(/usr/libexec/PlistBuddy -c Print "$entitlements" 2>&1 || true)"
 fi

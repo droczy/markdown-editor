@@ -49,6 +49,12 @@ jobs:
           persist-credentials: false
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked
+      # The sandbox allows outgoing connections only for WebKit; the app's
+      # own code must not use networking APIs.
+      - name: No networking APIs in the app's code
+        run: |
+          scripts/check-no-network.sh --self-test
+          scripts/check-no-network.sh
 
   test:
     name: Tests (${{ matrix.os }})
