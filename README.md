@@ -3,7 +3,15 @@
 A native, security-focused Markdown editor. macOS (Apple Silicon) first, Linux later.
 
 > **Status:** early development. The macOS app edits Markdown files with a
-> live, locked-down preview. There is no release to download yet.
+> live, locked-down preview. The first beta is being prepared; there is no
+> release to download yet.
+
+## Features
+
+Plain-text editor and live preview side by side; CommonMark and GitHub
+Flavored Markdown; clickable task lists; links are copied, never opened;
+zoom; completely offline and sandboxed. The full list, and what is planned,
+is in [FEATURES.md](FEATURES.md).
 
 ## Goals
 
