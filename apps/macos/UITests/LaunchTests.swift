@@ -27,4 +27,20 @@ final class LaunchTests: XCTestCase {
         editor.typeText("# Hello")
         XCTAssertEqual(editor.value as? String, "# Hello")
     }
+
+    @MainActor
+    func testWindowsHaveNoTabs() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
+        app.launchArguments += ["-privacyInfoShown", "YES", "-linkCopyHintShown", "YES"]
+        app.launch()
+        defer { app.terminate() }
+        app.typeKey(.escape, modifierFlags: [])
+        app.typeKey("n", modifierFlags: .command)
+        XCTAssertTrue(app.textViews["editor"].firstMatch.waitForExistence(timeout: 10))
+
+        for title in ["Show Tab Bar", "Show All Tabs", "Merge All Windows"] {
+            XCTAssertFalse(app.menuBars.menuItems[title].exists, "menu still offers \(title)")
+        }
+    }
 }
