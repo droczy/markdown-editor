@@ -39,7 +39,7 @@ Only the latest release receives security fixes during early development.
   shows the preview, requires it. CI ensures that the app's own code uses no
   networking APIs and the core no networking libraries.
 - **Resource limits.** Inputs above 10 MiB, nested deeper than 1000 levels
-  or expanding to more than 2,000,000 syntax tree nodes are rejected to
+  or expanding to more than 1,000,000 syntax tree nodes are rejected to
   prevent denial of service.
 - **Memory safety.** The core is written in safe Rust (`unsafe` is forbidden
   by a compiler lint).

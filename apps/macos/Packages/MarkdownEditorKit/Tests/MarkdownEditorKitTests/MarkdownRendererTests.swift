@@ -91,9 +91,9 @@ struct MarkdownRendererTests {
                 == "The document is nested too deeply for the preview (depth 5, limit 3).")
         let tooLarge = MarkdownRenderer.Failure.inputTooLarge(size: 20_000_000, limit: 10_485_760)
         #expect(tooLarge.errorDescription?.contains("too large") == true)
-        let tooComplex = MarkdownRenderer.Failure.tooManyNodes(limit: 2_000_000)
+        let tooComplex = MarkdownRenderer.Failure.tooManyNodes(limit: 1_000_000)
         #expect(tooComplex.errorDescription?.hasPrefix("The document is too complex") == true)
-        #expect(tooComplex.errorDescription?.contains(2_000_000.formatted()) == true)
+        #expect(tooComplex.errorDescription?.contains(1_000_000.formatted()) == true)
     }
 
     @Test("Concurrent rendering from many tasks is safe and consistent")
@@ -118,6 +118,6 @@ struct MarkdownRendererTests {
     func limits() {
         #expect(MarkdownRenderer.maxInputBytes == 10 * 1024 * 1024)
         #expect(MarkdownRenderer.maxNestingDepth == 1_000)
-        #expect(MarkdownRenderer.maxNodes == 2_000_000)
+        #expect(MarkdownRenderer.maxNodes == 1_000_000)
     }
 }
