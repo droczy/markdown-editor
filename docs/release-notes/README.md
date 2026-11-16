@@ -5,7 +5,8 @@ Every release has a file `v<version>.md` here (for example
 GitHub release: it replaces the line `<!-- changes -->` with the release's
 section of [CHANGELOG.md](../../CHANGELOG.md) (all changes, including
 *Security*) and the line `<!-- checksums -->` with the SHA-256 checksums
-and how to verify the files. Both lines must appear exactly once.
+and how to verify the files. Both lines and the heading `## Known issues`
+must appear exactly once.
 
 Template:
 

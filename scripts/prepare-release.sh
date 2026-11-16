@@ -5,7 +5,8 @@
 #       Checks that <tag> is a release tag (vX.Y.Z or vX.Y.Z-beta.N) whose
 #       version matches MARKETING_VERSION in apps/macos/project.yml, and that
 #       CHANGELOG.md has a section for it and docs/release-notes/<tag>.md
-#       exists with both placeholders (see docs/releasing.md).
+#       exists with both placeholders and a "## Known issues" section (see
+#       docs/releasing.md).
 #
 #   scripts/prepare-release.sh package <tag> <app> <out-dir>
 #       Runs the checks, then writes to <out-dir> (macOS, needs
@@ -60,7 +61,7 @@ check() {
         fail "the CHANGELOG section for $version is empty"
     notes="$root/docs/release-notes/$tag.md"
     [[ -f "$notes" ]] || fail "missing release notes: docs/release-notes/$tag.md"
-    for marker in '<!-- changes -->' '<!-- checksums -->'; do
+    for marker in '<!-- changes -->' '<!-- checksums -->' '## Known issues'; do
         [[ "$(grep -cxF -- "$marker" "$notes")" == 1 ]] ||
             fail "docs/release-notes/$tag.md must contain the line '$marker' exactly once"
     done
@@ -169,6 +170,9 @@ EOF
     printf '## Overview\n\nText.\n\n<!-- changes -->\n\n## Known issues\n\nNone.\n\n<!-- checksums -->\n' \
         > "$dir/docs/release-notes/v1.2.0-beta.1.md"
     cp "$dir/docs/release-notes/v1.2.0-beta.1.md" "$dir/docs/release-notes/v1.2.0-beta.2.md"
+    # A CHANGELOG section and notes with placeholders, but no known issues.
+    printf '## [1.2.0-beta.4] - 2026-11-30\n\n- Fourth beta.\n' >> "$dir/CHANGELOG.md"
+    printf '<!-- changes -->\n<!-- checksums -->\n' > "$dir/docs/release-notes/v1.2.0-beta.4.md"
     echo "## Overview" > "$dir/docs/release-notes/v1.2.0.md"
 
     local tag
@@ -177,8 +181,10 @@ EOF
             { echo "self-test: valid tag rejected: $tag" >&2; return 1; }
     done
     # Malformed tags, a version other than the app's, a missing CHANGELOG
-    # section and notes without placeholders are all rejected.
-    for tag in 1.2.0 v1.2 v1.2.0-rc.1 v1.2.0-beta.0 v01.2.0 'v1.2.0-beta.1 x' v1.3.0 v1.2.0-beta.3 v1.2.0; do
+    # section, notes without placeholders and notes without known issues
+    # are all rejected.
+    for tag in 1.2.0 v1.2 v1.2.0-rc.1 v1.2.0-beta.0 v01.2.0 'v1.2.0-beta.1 x' v1.3.0 v1.2.0-beta.3 \
+        v1.2.0 v1.2.0-beta.4; do
         if RELEASE_ROOT="$dir" "$BASH" "$0" check "$tag" > /dev/null 2>&1; then
             echo "self-test: invalid tag accepted: $tag" >&2
             return 1
