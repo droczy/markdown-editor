@@ -1,0 +1,86 @@
+# CodeQL code scanning (advanced setup). Replaces GitHub's default setup,
+# which detects the Swift code but cannot build it: the Xcode project is
+# generated with XcodeGen and the app links the Rust core, which has to be
+# built first.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, to pick up new queries for unchanged code.
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      # Upload the results to code scanning.
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            runner: ubuntu-latest
+            build-mode: none
+          - language: rust
+            runner: ubuntu-latest
+            build-mode: none
+          - language: swift
+            runner: macos-26
+            build-mode: manual
+    env:
+      XCODE_VERSION: "26.6"
+      XCODEGEN_VERSION: "2.46.0"
+      XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Swift: prepare everything that is not Swift code before CodeQL
+      # starts tracing the build.
+      - name: Select Xcode
+        if: matrix.language == 'swift'
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+      - name: Install XcodeGen (pinned, checksum verified)
+        if: matrix.language == 'swift'
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/xcodegen.zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+          echo "${XCODEGEN_SHA256}  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+      - name: Build Rust core (XCFramework + Swift bindings)
+        if: matrix.language == 'swift'
+        run: scripts/build-core-xcframework.sh
+      - name: Generate Xcode project
+        if: matrix.language == 'swift'
+        working-directory: apps/macos
+        run: xcodegen generate
+
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+
+      - name: Build the app (traced by CodeQL)
+        if: matrix.language == 'swift'
+        working-directory: apps/macos
+        run: |
+          xcodebuild build -project MarkdownEditor.xcodeproj -scheme MarkdownEditor \
+            -configuration Debug -derivedDataPath build CODE_SIGNING_ALLOWED=NO -quiet
+
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: "/language:${{ matrix.language }}"
