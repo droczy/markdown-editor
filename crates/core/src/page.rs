@@ -15,7 +15,7 @@ use crate::{RenderError, is_valid_task_token, render_html};
 /// can be part of the constants below.
 macro_rules! stylesheet_hash {
     () => {
-        "1iB/34NXLZGHkA55NM1f5trnl/80ktQAFqd0XzuauCU="
+        "RPp8AwFESjG3Cu4iAs4FNp85sEKgaPjTSJe5wICeZ5o="
     };
 }
 
@@ -173,7 +173,7 @@ mod tests {
     fn policy_blocks_everything_except_the_stylesheet() {
         assert_eq!(
             PAGE_CONTENT_SECURITY_POLICY,
-            "default-src 'none'; style-src 'sha256-1iB/34NXLZGHkA55NM1f5trnl/80ktQAFqd0XzuauCU='; \
+            "default-src 'none'; style-src 'sha256-RPp8AwFESjG3Cu4iAs4FNp85sEKgaPjTSJe5wICeZ5o='; \
              base-uri 'none'; form-action 'none'"
         );
         assert!(PAGE_CONTENT_SECURITY_POLICY.contains(PAGE_STYLESHEET_HASH));

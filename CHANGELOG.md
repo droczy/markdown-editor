@@ -109,6 +109,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Task checkboxes in the preview react to clicks anywhere on the box. With
+  the web engine of macOS 27, only a one-pixel strip next to the checkbox
+  was clickable, so clicking the checkbox itself did nothing.
 - CI fuzzing jobs build for the glibc Linux target explicitly; the
   prebuilt `cargo-fuzz` binary otherwise defaulted to musl, which is
   incompatible with the sanitizers.
