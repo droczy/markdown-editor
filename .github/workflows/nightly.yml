@@ -72,7 +72,8 @@ jobs:
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-mutants@27.1.0
-      - env:
+      - name: Test mutants with a memory limit
+        env:
           SHARD: ${{ matrix.shard }}
         run: |
           # A mutant can make a test allocate without bound. A runner that
@@ -82,10 +83,15 @@ jobs:
           ulimit -v $((8 * 1024 * 1024))
           # Prove that the limit is enforced before relying on it. Mapping
           # 9 GiB reserves address space only, never memory.
-          if python3 -I -c 'import mmap; mmap.mmap(-1, 9 * 1024**3)' 2>/dev/null; then
-            echo "::error::The memory limit for mutation testing is not enforced."
-            exit 1
-          fi
+          python3 -I -c '
+          import mmap
+          try:
+              mmap.mmap(-1, 9 * 1024**3)
+          except OSError:
+              raise SystemExit(0)
+          print("::error::The memory limit for mutation testing is not enforced.")
+          raise SystemExit(1)
+          '
           cargo mutants --workspace --exclude uniffi-bindgen --shard "$SHARD/4" -- --release
       # Keep the per-mutant logs, so that a failed night can be diagnosed.
       - if: always()
