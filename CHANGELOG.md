@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-beta.1] - 2026-11-19
+
 ### Added
 
 - Rust core crate `markdown-editor-core` with `render_html`, converting
@@ -51,9 +53,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for the short review.
 - First full security review (phase 2): report in
   `docs/security/reviews/2026-11-phase-2.md`.
+- Full security review of this release (editor, preview, links, task
+  checkboxes, release workflow): report in
+  `docs/security/reviews/2026-11-v0.1.0-beta.1.md`. Its two findings are
+  fixed (see *Security*).
 - The README explains autosave and document versions.
 - `FEATURES.md` lists what the app can do and what is planned; the README
   summarizes it.
+- `docs/example.md` shows the main features in one document, to read on
+  GitHub or open in the app.
 - Editor and preview side by side in the macOS app, each taking half of the
   window. The editor (`NSTextView`, TextKit 1, system font) never changes
   text on its own: smart quotes and dashes, text replacement, spelling
@@ -224,3 +232,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changes made to a file by another application are never overwritten
   silently: the system asks how to resolve the conflict.
 - Read-only files are not modified.
+
+[Unreleased]: https://github.com/droczy/markdown-editor/compare/v0.1.0-beta.1...HEAD
+[0.1.0-beta.1]: https://github.com/droczy/markdown-editor/releases/tag/v0.1.0-beta.1

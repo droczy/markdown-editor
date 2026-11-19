@@ -14,6 +14,8 @@ Completed reports are published in `docs/security/reviews/`:
 
 - [2026-11: phase 2](reviews/2026-11-phase-2.md): Rust core, FFI and the
   macOS app skeleton.
+- [2026-11: v0.1.0-beta.1](reviews/2026-11-v0.1.0-beta.1.md): editor,
+  preview, links, task checkboxes and the release workflow.
 
 ## When reviews happen
 

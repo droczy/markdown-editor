@@ -3,15 +3,18 @@
 A native, security-focused Markdown editor. macOS (Apple Silicon) first, Linux later.
 
 > **Status:** early development. The macOS app edits Markdown files with a
-> live, locked-down preview. The first beta is being prepared; there is no
-> release to download yet.
+> live, locked-down preview. Betas, starting with v0.1.0-beta.1, are
+> published under [Releases](https://github.com/droczy/markdown-editor/releases).
+> They are not notarized, so macOS asks before their first start; the
+> release notes explain what to do.
 
 ## Features
 
 Plain-text editor and live preview side by side; CommonMark and GitHub
 Flavored Markdown; clickable task lists; links are copied, never opened;
 zoom; completely offline and sandboxed. The full list, and what is planned,
-is in [FEATURES.md](FEATURES.md).
+is in [FEATURES.md](FEATURES.md); [docs/example.md](docs/example.md) shows
+them in one document.
 
 ## Goals
 
@@ -41,7 +44,7 @@ in an earlier version. An option to turn off or delete versions is planned.
 | `apps/macos` | macOS app (SwiftUI/AppKit); Xcode project defined in `project.yml` |
 | `apps/macos/Packages/MarkdownEditorKit` | Testable Swift logic of the macOS app |
 | `scripts` | Helper scripts, e.g. verification of the built app's security properties |
-| `docs` | Security reviews and threat model, release process and release notes |
+| `docs` | Example document, security reviews and threat model, release process and release notes |
 | `fuzz` | Fuzz targets (requires nightly Rust and `cargo-fuzz`) |
 | `.github` | CI workflows and Dependabot configuration |
 

@@ -1,7 +1,7 @@
 # Threat model
 
-Last updated: 2026-11-13, during development of v0.1 (macOS). This
-document is updated at every full review (see the [process](README.md)).
+Last updated: 2026-11-19, for v0.1.0-beta.1 (macOS). This document is
+updated at every full review (see the [process](README.md)).
 
 ## System overview
 
@@ -11,27 +11,33 @@ document is updated at every full review (see the [process](README.md)).
 - **FFI** (`crates/ffi`) adapts the core to UniFFI. The macOS app links it
   as a static library through generated Swift bindings.
 - **macOS app** (`apps/macos`) is a SwiftUI document app. It opens, edits
-  and saves Markdown files inside the App Sandbox. The preview (a web view)
-  is planned for v0.1.
+  and saves Markdown files inside the App Sandbox. The editor is an
+  `NSTextView`; the preview is a locked-down web view (`WKWebView`) that
+  shows the page the core rendered. A click on a link copies the address
+  the core checked to the clipboard; a click on a task checkbox changes
+  one character in the editor, after the core checked the page's token.
 - **Build and distribution:** GitHub repository, GitHub Actions,
-  dependencies from crates.io, Xcode project generated with XcodeGen,
-  release artifacts (planned).
+  dependencies from crates.io, Xcode project generated with XcodeGen;
+  releases built by the release workflow from signed tags.
 
 ```mermaid
 flowchart LR
     file[("Document file<br/>(untrusted)")]
     doc["MarkdownDocument<br/>(Swift)"]
-    editor["Editor"]
+    editor["Editor<br/>(NSTextView)"]
     core["Rust core<br/>comrak, then ammonia"]
-    preview["Preview web view<br/>(planned)"]
-    outside(("Links and images"))
+    preview["Preview web view<br/>(locked down)"]
+    clipboard(("Clipboard"))
+    network(("Network and<br/>local files"))
 
     file -- "TB1: max. 50 MiB, UTF-8 only" --> doc
     doc -- "atomic save" --> file
-    doc --> editor
+    doc <--> editor
     editor -- "TB2: FFI, max. 10 MiB" --> core
     core -- "TB3: sanitized HTML" --> preview
-    preview -- "TB4: link addresses (copied, never opened)" --> outside
+    preview -- "TB3: task click (page token, checked by the core)" --> editor
+    preview -- "TB4: link address (checked by the core, never opened)" --> clipboard
+    preview -- "TB4: every load blocked" --x network
 ```
 
 ## Assets
@@ -143,3 +149,14 @@ protected by signed commits.
   system would stop that as well. Accepted because the alternatives (a
   preview without a web engine, or a separate helper process) would make
   the planned math, diagrams and PDF export impractical.
+- **The largest accepted documents need a lot of memory.** A document just
+  below the node limit needs about 2.3 GB (1.8 GB in the preview's web
+  process, 0.5 GB in the app), and a 50 MB file in a single line about
+  2.2 GB and 13 seconds to open. Accepted: both are bounded by the limits,
+  the app stays responsive, and lower limits would reject real documents.
+- **Releases are ad-hoc signed and not notarized.** macOS asks before the
+  first start of a downloaded copy, and the signature does not identify
+  the developer. Accepted while the app is for the maintainer's own use:
+  the SHA-256 checksums and the attestations signed by GitHub show which
+  workflow built the files from which commit. To be reviewed before the
+  app is offered to other users.
