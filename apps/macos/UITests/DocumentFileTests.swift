@@ -59,29 +59,12 @@ final class DocumentFileTests: XCTestCase {
         try fixture(name, bytes: Data(text.utf8))
     }
 
-    /// Sends `url` to exactly the app under test. `XCUIApplication.open(_:)`
-    /// would use the system's default app for the file type, which differs
-    /// between machines (e.g. `.txt` opening in another editor).
-    private func send(_ url: URL) throws {
-        let appURL = Bundle.main.bundleURL.deletingLastPathComponent()
-            .appendingPathComponent("MarkdownEditor.app")
-        let opened = expectation(description: "open \(url.lastPathComponent)")
-        NSWorkspace.shared.open(
-            [url], withApplicationAt: appURL, configuration: NSWorkspace.OpenConfiguration()
-        ) { _, error in
-            XCTAssertNil(error)
-            opened.fulfill()
-        }
-        wait(for: [opened], timeout: 10)
-        launchedApp.activate()
-    }
-
     /// Opens `url` in the app under test and returns its editor.
-    private func open(_ url: URL) throws -> XCUIElement {
-        try send(url)
+    private func open(_ url: URL, timeout: TimeInterval = 10) throws -> XCUIElement {
+        openInAppUnderTest(url, app: launchedApp)
         let editor = launchedApp.textViews["editor"].firstMatch
         XCTAssertTrue(
-            editor.waitForExistence(timeout: 10),
+            editor.waitForExistence(timeout: timeout),
             "editor did not appear for \(url.lastPathComponent)")
         return editor
     }
@@ -177,7 +160,7 @@ final class DocumentFileTests: XCTestCase {
     func testNonUTF8FileIsRejectedAndLeftUnchanged() throws {
         let latin1 = try XCTUnwrap("Grüße".data(using: .isoLatin1))
         let url = try fixture("latin1.md", bytes: latin1)
-        try send(url)
+        openInAppUnderTest(url, app: launchedApp)
 
         XCTAssertTrue(errorIsShown(containing: "UTF-8"), "no UTF-8 error shown")
         XCTAssertFalse(launchedApp.textViews["editor"].exists)
@@ -188,7 +171,7 @@ final class DocumentFileTests: XCTestCase {
     func testTooLargeFileIsRejectedAndLeftUnchanged() throws {
         let bytes = Data(repeating: 0x61, count: 50 * 1024 * 1024 + 1)
         let url = try fixture("huge.md", bytes: bytes)
-        try send(url)
+        openInAppUnderTest(url, app: launchedApp)
 
         XCTAssertTrue(errorIsShown(containing: "too large"), "no size error shown")
         XCTAssertFalse(launchedApp.textViews["editor"].exists)
@@ -234,6 +217,33 @@ final class DocumentFileTests: XCTestCase {
             XCTAssertEqual(
                 try contents(of: url), external, "external edit was overwritten silently")
         }
+    }
+
+    /// A paragraph of several megabytes, such as minified data saved as text,
+    /// used to make the app unresponsive for minutes (SR-2026-004).
+    @MainActor
+    func testFileWithoutLineBreaksCanBeEdited() throws {
+        let url = try fixture("one-line.md", text: String(repeating: "[a](b) ", count: 900_000))
+        let start = Date()
+        let editor = try open(url, timeout: 20)
+
+        // The app still responds: the preview explains that the document is
+        // too complex, and the end of the text can be edited and saved.
+        XCTAssertTrue(
+            launchedApp.descendants(matching: .any)["previewError"].waitForExistence(timeout: 20),
+            "no notice in the preview")
+        append("end", to: editor)
+        launchedApp.typeKey("s", modifierFlags: .command)
+        let deadline = Date().addingTimeInterval(20)
+        while Date() < deadline,
+            (try? Data(contentsOf: url))?.suffix(3) != Data("end".utf8)
+        {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertEqual(try contents(of: url).suffix(3), Data("end".utf8), "typed text not saved")
+        // About 10 s locally, most of it spent by UI automation on the long
+        // text; several minutes before the fix.
+        XCTAssertLessThan(Date().timeIntervalSince(start), 60, "editing was too slow")
     }
 
     @MainActor

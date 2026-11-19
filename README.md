@@ -33,6 +33,7 @@ in an earlier version. An option to turn off or delete versions is planned.
 | `apps/macos` | macOS app (SwiftUI/AppKit); Xcode project defined in `project.yml` |
 | `apps/macos/Packages/MarkdownEditorKit` | Testable Swift logic of the macOS app |
 | `scripts` | Helper scripts, e.g. verification of the built app's security properties |
+| `docs` | Security reviews and threat model, release process and release notes |
 | `fuzz` | Fuzz targets (requires nightly Rust and `cargo-fuzz`) |
 | `.github` | CI workflows and Dependabot configuration |
 

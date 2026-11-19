@@ -53,24 +53,6 @@ final class EditorPreviewTests: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: 10), "preview did not show \(element)")
     }
 
-    /// The sheet asking about a link, once it is shown.
-    private func linkSheet(containing fragment: String) -> XCUIElement {
-        let sheet = launchedApp.sheets.firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 10), "no dialog for the link")
-        let predicate = NSPredicate(
-            format: "value CONTAINS[c] %@ OR label CONTAINS[c] %@", fragment, fragment)
-        XCTAssertTrue(
-            sheet.staticTexts.matching(predicate).firstMatch.exists,
-            "dialog does not mention \(fragment)")
-        return sheet
-    }
-
-    private func waitUntilGone(_ element: XCUIElement) {
-        let gone = expectation(
-            for: NSPredicate(format: "exists == false"), evaluatedWith: element)
-        wait(for: [gone], timeout: 10)
-    }
-
     // MARK: - Tests
 
     func testEditorAndPreviewShareTheWindowEqually() {
@@ -184,8 +166,12 @@ final class EditorPreviewTests: XCTestCase {
     func testClickingATaskCheckboxEditsTheText() {
         let checkbox = preview.checkBoxes["Task"].firstMatch
         // Wait until the preview shows the whole text: a click on an older
-        // page is ignored on purpose (its task index may be outdated).
-        type("- [ ] Buy milk\n- [x] Done", thenWaitFor: preview.checkBoxes.element(boundBy: 1))
+        // page is ignored on purpose (its task index may be outdated). The
+        // second checkbox alone appears before the last word is typed.
+        let lastWord = preview.staticTexts.matching(
+            NSPredicate(format: "value CONTAINS 'Done' OR label CONTAINS 'Done'")
+        ).firstMatch
+        type("- [ ] Buy milk\n- [x] Done", thenWaitFor: lastWord)
 
         checkbox.click()
         XCTAssertTrue(
@@ -226,20 +212,22 @@ final class EditorPreviewTests: XCTestCase {
         XCTAssertEqual(editor.value as? String, "# Zoom", "zooming changed the text")
     }
 
-    /// Polls `condition` for up to ten seconds.
-    private func waitUntil(_ condition: () -> Bool) -> Bool {
-        let deadline = Date().addingTimeInterval(10)
-        while Date() < deadline {
-            if condition() { return true }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        return false
-    }
-
     func testPreviewExplainsDocumentsItCannotRender() {
         // Nested deeper than the renderer's limit of 1 000 levels.
         let tooDeep = String(repeating: ">", count: 1_001) + "x"
-        type(tooDeep, thenWaitFor: launchedApp.descendants(matching: .any)["previewError"])
+        let notice = launchedApp.descendants(matching: .any)["previewError"]
+        type(tooDeep, thenWaitFor: notice)
         XCTAssertEqual(editor.value as? String, tooDeep, "editor must keep the text")
+
+        // Once the document can be rendered again, the notice disappears.
+        launchedApp.typeKey("a", modifierFlags: .command)
+        editor.typeText("Fixed")
+        XCTAssertTrue(preview.staticTexts["Fixed"].waitForExistence(timeout: 10), "not rendered")
+        XCTAssertTrue(waitUntil { !notice.exists }, "the notice stayed")
+    }
+
+    func testTabKeyInsertsATabCharacter() {
+        type("a\tb", thenWaitFor: preview.staticTexts.firstMatch)
+        XCTAssertEqual(editor.value as? String, "a\tb")
     }
 }

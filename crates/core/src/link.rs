@@ -125,22 +125,21 @@ fn task_link(url: &str) -> Option<LinkAction> {
 
 /// `text` with `%XX` escapes decoded, if the result is printable ASCII
 /// without spaces; `None` otherwise (also for malformed escapes).
+///
+/// Splits at `%` instead of stepping through positions by hand, so that no
+/// change to a position counter can turn the loop into an endless one.
 fn percent_decoded(text: &str) -> Option<String> {
-    let bytes = text.as_bytes();
-    let mut decoded = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while let Some(&byte) = bytes.get(index) {
-        if byte == b'%' {
-            let digits = bytes.get(index + 1..index + 3)?;
-            if !digits.iter().all(u8::is_ascii_hexdigit) {
-                return None;
-            }
-            decoded.push(u8::from_str_radix(std::str::from_utf8(digits).ok()?, 16).ok()?);
-            index += 3;
-        } else {
-            decoded.push(byte);
-            index += 1;
+    let mut parts = text.split('%');
+    let mut decoded = parts.next()?.as_bytes().to_vec();
+    for part in parts {
+        // `None` if fewer than two bytes follow or they split a character.
+        let (digits, rest) = part.split_at_checked(2)?;
+        // `from_str_radix` alone would also accept a sign, as in `%+1`.
+        if !digits.as_bytes().iter().all(u8::is_ascii_hexdigit) {
+            return None;
         }
+        decoded.push(u8::from_str_radix(digits, 16).ok()?);
+        decoded.extend_from_slice(rest.as_bytes());
     }
     if decoded.iter().all(u8::is_ascii_graphic) {
         String::from_utf8(decoded).ok()
@@ -297,9 +296,14 @@ mod tests {
     fn percent_decoding_requires_two_hex_digits() {
         assert_eq!(percent_decoded("a%41b"), Some("aAb".into()));
         assert_eq!(percent_decoded("%7e"), Some("~".into()));
+        assert_eq!(percent_decoded("%41%42c"), Some("ABc".into()));
         assert_eq!(percent_decoded(""), Some(String::new()));
         assert_eq!(percent_decoded("%4"), None);
         assert_eq!(percent_decoded("%4g"), None);
+        assert_eq!(percent_decoded("%%41"), None);
+        assert_eq!(percent_decoded("%+1"), None);
+        assert_eq!(percent_decoded("%é"), None);
+        assert_eq!(percent_decoded("%4é"), None);
         assert_eq!(percent_decoded("%20"), None);
         assert_eq!(percent_decoded("%7F"), None);
     }

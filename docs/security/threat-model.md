@@ -86,7 +86,7 @@ milestone), or **accepted** (see residual risks).
 | T1 | Opening and saving changes untouched content (encoding, line endings) | Byte-exact round trip, UTF-8 only, byte order mark and line endings preserved; unit and UI tests | in place |
 | T2 | A2 changes a file and the app overwrites it silently | System conflict handling for external changes; UI test | in place |
 | T3 | A3 injects code through a dependency or Action | `Cargo.lock`, crates.io only (`cargo-deny`), Actions pinned to commit SHAs, 14-day cooldown for new releases, Dependabot | in place |
-| T4 | Release artifacts are replaced or modified | Built from tagged commits; SHA-256 checksums in the release notes | planned (first beta) |
+| T4 | Release artifacts are replaced or modified | Built only by the release workflow from a signed tag (verified by GitHub) on `main` whose CI passed; the build job cannot write to the repository; SHA-256 checksums in the release notes; build provenance and SBOM attestations signed by GitHub (Sigstore); drafts until the maintainer publishes them, immutable afterwards (repository setting) | in place (from v0.1.0-beta.1) |
 | T5 | A click in the preview changes the document in an unintended place, or a document triggers such changes itself (task checkboxes) | Each page carries a random token in its task links; a click is applied only with the token of the shown page and only if the text has not changed since that page was rendered; the core changes exactly the one character between the brackets after checking it; protocol-relative links (`//host`), the only way for a document to reach the preview's internal addresses, are removed by the sanitizer; the change goes through the editor and can be undone. Property test: a toggle changes exactly one byte | in place |
 | T6 | A document puts misleading or harmful text on the clipboard through a link (hidden characters, line breaks that run a pasted command) | Only the address checked by the core is copied: printable ASCII without spaces, line breaks or invisible characters, at most 4096 bytes; email addresses are decoded only if the result is printable ASCII; the notice shows the real host and the copied text; nothing is copied for blocked links | in place |
 
@@ -109,7 +109,7 @@ protected by signed commits.
 
 | ID | Threat | Mitigation | Status |
 | --- | --- | --- | --- |
-| D1 | Large or pathological documents exhaust CPU or memory | Limits: 50 MiB per file, 10 MiB per render, nesting depth 1000, 1,000,000 syntax tree nodes (which also bounds the preview's memory, SR-2026-005), linear-time escaping. Each limit has worst-case tests; fuzzing | in place |
+| D1 | Large or pathological documents exhaust CPU or memory | Limits: 50 MiB per file, 10 MiB per render, nesting depth 1000, 1,000,000 syntax tree nodes (which also bounds the preview's memory, SR-2026-005), linear-time escaping. The editor lays out text with TextKit 1 and non-contiguous layout, so long paragraphs stay responsive (SR-2026-004). Each limit has worst-case tests, the editor a test with a 6 MB paragraph; fuzzing | in place |
 | D2 | Deep nesting overflows the stack | Iterative depth check; tests on a 512 KiB stack | in place |
 | D3 | An unexpected panic in the core crashes the app and loses unsaved text | `panic = unwind`; UniFFI turns panics into Swift errors | in place |
 | D4 | Rendering blocks the user interface | Rendering off the main actor, after a pause in typing; at most one render at a time | in place |
@@ -122,7 +122,7 @@ protected by signed commits.
 | E2 | The preview executes code (script, plugins, navigation to `javascript:` URLs) | Sanitizer; JavaScript of the page disabled; Lockdown Mode; every navigation except the app's own page load is cancelled. The app runs two fixed scripts (keep the scroll position) in an isolated world the page cannot access; values are passed as arguments, never as code | in place |
 | E3 | A link launches a dangerous URL scheme (`file:`, custom app schemes) | Links are never opened, only their address is copied, so no URL is ever handed to another app; CI forbids the APIs for that in the app's code (`NSWorkspace`, Launch Services, `openURL`). The sanitizer allows only `http`, `https`, `mailto` and relative links, and the scheme is checked again after WebKit resolved the link (`link_action` in the core); no system services in the preview's context menu | in place |
 | E4 | The app gains more rights than needed | App Sandbox with user-selected file access and outgoing connections (required by WebKit) only; hardened runtime; no debugger attachment in release builds; CI verifies the exact entitlements | in place |
-| E5 | A4 compromises CI through a pull request (privileged triggers, script injection) | Only `pull_request` triggers; read-only token; no secrets; untrusted values passed through environment variables | in place |
+| E5 | A4 compromises CI through a pull request (privileged triggers, script injection) | Pull requests run only with `pull_request` triggers and a read-only token; the release workflow runs only for tags and manual starts, which need write access; permissions per job, no secrets; untrusted values passed through environment variables; workflows audited with zizmor | in place |
 
 ## Residual risks
 
