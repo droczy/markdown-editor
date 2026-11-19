@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UI tests with real files: edit and save, autosave on close, Windows line
   endings, plain-text files, invalid UTF-8, oversized files, external
   changes and read-only files.
+- UI tests for the zoom level kept after quitting and relaunching the app,
+  the Tab key inserting a tab character, the preview's notice disappearing
+  once a document can be rendered again, and the privacy window staying
+  closed after the first launch.
 - `scripts/verify-macos-app.sh` checks the built app's signature, hardened
   runtime, architecture, entitlements and linked libraries.
 - Security review process in `docs/security`: short reviews for
