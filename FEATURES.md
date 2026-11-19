@@ -1,6 +1,7 @@
 # Features
 
 What the macOS app can do today (macOS 26 or later, Apple Silicon). The
+[example document](docs/example.md) shows the features in one file, the
 [changelog](CHANGELOG.md) has the details, the [security policy](SECURITY.md)
 the security model.
 

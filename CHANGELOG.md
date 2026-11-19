@@ -60,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The README explains autosave and document versions.
 - `FEATURES.md` lists what the app can do and what is planned; the README
   summarizes it.
+- `docs/example.md` shows the main features in one document, to read on
+  GitHub or open in the app.
 - Editor and preview side by side in the macOS app, each taking half of the
   window. The editor (`NSTextView`, TextKit 1, system font) never changes
   text on its own: smart quotes and dashes, text replacement, spelling
