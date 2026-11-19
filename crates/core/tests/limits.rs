@@ -116,6 +116,25 @@ fn many_tables_with_short_rows_are_rejected_quickly() {
     assert!(start.elapsed() < TIME_LIMIT);
 }
 
+/// Documents that would make the preview's web engine use gigabytes of
+/// memory are rejected (SR-2026-005). With the earlier limit of 2,000,000
+/// nodes, these inputs of 2.4 and 3 MB rendered, and the preview needed 3.4
+/// and 3.1 GB.
+#[test]
+fn long_tables_and_many_paragraphs_are_rejected() {
+    let long_table = "|a|\n|-|\n".to_owned() + &"|a|\n".repeat(600_000);
+    let many_paragraphs = "a\n\n".repeat(990_000);
+    for input in [long_table, many_paragraphs] {
+        let result = render_html(&input);
+        assert!(
+            matches!(result, Err(RenderError::TooManyNodes { .. })),
+            "{} bytes were not rejected: {:?}",
+            input.len(),
+            result.map(|html| html.len())
+        );
+    }
+}
+
 /// The node limit must not reject realistic documents up to the size limit.
 #[test]
 fn prose_up_to_the_size_limit_is_accepted() {

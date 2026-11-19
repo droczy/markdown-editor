@@ -179,14 +179,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   values that would be excessively expensive to escape are removed; real
   links, titles and image descriptions stay far below that limit. No
   released version was affected.
-- Documents whose syntax tree would exceed 2,000,000 nodes are rejected
+- The node limit also bounds the memory of the preview (denial of service,
+  SR-2026-005). The preview's web engine needs up to about 2 KB per node,
+  so documents of 2 to 3 MB within the earlier limit of 2,000,000 nodes
+  made it use up to 3.4 GB of memory, in addition to the app. The limit is
+  now 1,000,000 nodes: at most about 1.8 GB for the preview and 0.5 GB for
+  the app. Real documents have 50 to 80 nodes per KiB and stay below the
+  limit up to the size limit of 10 MiB. No released version was affected.
+- Documents whose syntax tree would exceed 1,000,000 nodes are rejected
   (denial of service). Some Markdown constructs expand to far more nodes
   than they have bytes, so small crafted inputs could make rendering
   exhaust memory. Parsing now stops as soon as the limit is reached, which
   bounds memory use and rendering time independently of the input size:
-  10 MiB documents previously needed up to 4 GB of memory, now at most
-  about 1.2 GB. Typical documents up to the size limit, such as 10 MiB of
-  prose, are not affected. The limit is available to the app as
+  10 MiB documents previously needed up to 4 GB of memory, the core now
+  at most about 0.6 GB. Typical documents up to the size limit, such as
+  10 MiB of prose, are not affected. The limit is available to the app as
   `MarkdownRenderer.maxNodes`, and exceeding it is reported as a typed
   error. No released version was affected.
 - Updated ammonia from 4.2.4 to 4.2.5, which fixes RUSTSEC-2026-0533
