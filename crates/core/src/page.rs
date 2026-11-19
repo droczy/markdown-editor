@@ -1,12 +1,16 @@
 //! The complete HTML page shown in the preview: sanitized content wrapped in
 //! a fixed template with a strict Content Security Policy and the stylesheet.
 //!
+//! The platform loads the template once ([`EMPTY_PAGE`]) and then shows each
+//! version of the document by replacing the content of its `main` element
+//! with [`render_page_content`]. The page is never reloaded for an edit, so
+//! the scroll position stays and an edit appears at once.
+//!
 //! The policy is the third line of defence after comrak and the sanitizer.
 //! Even if markup slipped through both, the page could not load anything,
 //! run scripts, submit forms or change its base URL. Only the stylesheet
 //! below is allowed, identified by its hash.
 
-use std::borrow::Cow;
 use std::fmt::Write;
 
 use crate::{RenderError, is_valid_task_token, render_html};
@@ -59,19 +63,37 @@ pub(crate) const TASK_LINK_PREFIX: &str = "markdown-preview://task/";
 
 /// Everything before the content. The policy comes first, before anything
 /// that it has to govern.
-const PAGE_START: &str = concat!(
-    "<!DOCTYPE html>\n<html>\n<head>\n",
-    "<meta http-equiv=\"Content-Security-Policy\" content=\"",
-    content_security_policy!(),
-    "\">\n",
-    "<meta charset=\"utf-8\">\n",
-    "<meta name=\"color-scheme\" content=\"light dark\">\n",
-    "<style>",
-    stylesheet!(),
-    "</style>\n</head>\n<body>\n<main>\n"
-);
+macro_rules! page_start {
+    () => {
+        concat!(
+            "<!DOCTYPE html>\n<html>\n<head>\n",
+            "<meta http-equiv=\"Content-Security-Policy\" content=\"",
+            content_security_policy!(),
+            "\">\n",
+            "<meta charset=\"utf-8\">\n",
+            "<meta name=\"color-scheme\" content=\"light dark\">\n",
+            "<style>",
+            stylesheet!(),
+            "</style>\n</head>\n<body>\n<main>\n"
+        )
+    };
+}
 
-const PAGE_END: &str = "</main>\n</body>\n</html>\n";
+/// Everything after the content.
+macro_rules! page_end {
+    () => {
+        "</main>\n</body>\n</html>\n"
+    };
+}
+
+const PAGE_START: &str = page_start!();
+const PAGE_END: &str = page_end!();
+
+/// The preview page without content: the template with the policy and the
+/// stylesheet, and an empty `main` element, the only child of `body`. The
+/// platform loads it once (with [`PAGE_BASE_URL`]) and puts the output of
+/// [`render_page_content`] into that element.
+pub const EMPTY_PAGE: &str = concat!(page_start!(), page_end!());
 
 /// Renders untrusted Markdown to a complete HTML page for the preview.
 ///
@@ -99,16 +121,44 @@ const PAGE_END: &str = "</main>\n</body>\n</html>\n";
 /// assert!(page.contains("href=\"markdown-preview://task/t1/0\""));
 /// ```
 pub fn render_page(markdown: &str, task_token: Option<&str>) -> Result<String, RenderError> {
-    let content = render_html(markdown)?;
-    let content = match task_token {
-        Some(token) if is_valid_task_token(token) => Cow::Owned(link_tasks(&content, token)),
-        _ => Cow::Borrowed(content.as_str()),
-    };
+    let content = render_page_content(markdown, task_token)?;
     let mut page = String::with_capacity(PAGE_START.len() + content.len() + PAGE_END.len());
     page.push_str(PAGE_START);
     page.push_str(&content);
     page.push_str(PAGE_END);
     Ok(page)
+}
+
+/// Renders untrusted Markdown to the content of the preview page: exactly
+/// what [`render_page`] puts into the page's `main` element.
+///
+/// The platform shows it by replacing the content of the `main` element of
+/// [`EMPTY_PAGE`], so that the page's policy applies to it as well. The
+/// `task_token` works as in [`render_page`].
+///
+/// # Errors
+///
+/// The same as [`render_html`].
+///
+/// # Examples
+///
+/// ```
+/// use markdown_editor_core::{EMPTY_PAGE, render_page, render_page_content};
+///
+/// let content = render_page_content("- [ ] task", Some("t1")).unwrap();
+/// assert!(content.contains("href=\"markdown-preview://task/t1/0\""));
+/// let page = EMPTY_PAGE.replace("<main>\n", &format!("<main>\n{content}"));
+/// assert_eq!(page, render_page("- [ ] task", Some("t1")).unwrap());
+/// ```
+pub fn render_page_content(
+    markdown: &str,
+    task_token: Option<&str>,
+) -> Result<String, RenderError> {
+    let content = render_html(markdown)?;
+    Ok(match task_token {
+        Some(token) if is_valid_task_token(token) => link_tasks(&content, token),
+        _ => content,
+    })
 }
 
 /// Replaces every task checkbox of sanitized `content` with a link that
@@ -157,6 +207,38 @@ mod tests {
         assert_eq!(
             page,
             format!("{PAGE_START}<h1>Title</h1>\n<p>text</p>\n{PAGE_END}")
+        );
+    }
+
+    #[test]
+    fn empty_page_is_the_template_without_content() {
+        assert_eq!(EMPTY_PAGE, render_page("", None).unwrap());
+        assert_eq!(EMPTY_PAGE, format!("{PAGE_START}{PAGE_END}"));
+        // The platform finds the element to fill as the only child of body.
+        assert!(EMPTY_PAGE.ends_with("<body>\n<main>\n</main>\n</body>\n</html>\n"));
+        assert_eq!(EMPTY_PAGE.matches("<main>").count(), 1);
+    }
+
+    #[test]
+    fn content_is_what_the_page_wraps() {
+        for (markdown, token) in [
+            ("# Title\n\ntext", None),
+            ("- [ ] open\n- [x] done", Some("abc-1")),
+            ("- [ ] open", Some("not valid")),
+            ("", None),
+        ] {
+            let content = render_page_content(markdown, token).unwrap();
+            assert_eq!(
+                render_page(markdown, token).unwrap(),
+                format!("{PAGE_START}{content}{PAGE_END}"),
+                "{markdown:?}"
+            );
+        }
+        assert_eq!(render_page_content("- [ ] a", None), render_html("- [ ] a"));
+        let markdown = "a".repeat(crate::MAX_INPUT_BYTES + 1);
+        assert_eq!(
+            render_page_content(&markdown, None),
+            Err(render_html(&markdown).unwrap_err())
         );
     }
 

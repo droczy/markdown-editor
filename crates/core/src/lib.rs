@@ -17,8 +17,9 @@
 //!    Remote and absolute image sources are removed, because the application
 //!    must never load anything from the network.
 //!
-//! The preview shows the result as a complete page from [`render_page`],
-//! whose Content Security Policy forms a third layer. The platform must
+//! The preview shows the result in a page with a Content Security Policy
+//! ([`render_page`], or [`EMPTY_PAGE`] filled with [`render_page_content`]),
+//! which forms a third layer. The platform must
 //! additionally disable JavaScript and block navigation; clicked links are
 //! checked with [`link_action`]. The first two layers do not rely on that.
 
@@ -29,7 +30,8 @@ mod task;
 
 pub use link::{LinkAction, MAX_LINK_BYTES, link_action};
 pub use page::{
-    PAGE_BASE_URL, PAGE_CONTENT_SECURITY_POLICY, PAGE_STYLESHEET, PAGE_STYLESHEET_HASH, render_page,
+    EMPTY_PAGE, PAGE_BASE_URL, PAGE_CONTENT_SECURITY_POLICY, PAGE_STYLESHEET, PAGE_STYLESHEET_HASH,
+    render_page, render_page_content,
 };
 pub use task::{MAX_TASK_TOKEN_BYTES, TaskToggle, is_valid_task_token, toggle_task};
 

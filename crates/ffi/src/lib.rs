@@ -49,9 +49,10 @@ pub fn render_html(markdown: &str) -> Result<String, RenderError> {
     markdown_editor_core::render_html(markdown).map_err(RenderError::from)
 }
 
-/// Renders untrusted Markdown to a complete HTML page for the preview; with
-/// a `task_token`, task checkboxes become links that toggle them. See
-/// [`markdown_editor_core::render_page`].
+/// Renders untrusted Markdown to the content of the preview page, which
+/// goes into the `main` element of [`empty_page`]; with a `task_token`, task
+/// checkboxes become links that toggle them. See
+/// [`markdown_editor_core::render_page_content`].
 ///
 /// # Errors
 ///
@@ -61,8 +62,19 @@ pub fn render_html(markdown: &str) -> Result<String, RenderError> {
     clippy::needless_pass_by_value,
     reason = "UniFFI passes optional strings by value"
 )]
-pub fn render_page(markdown: &str, task_token: Option<String>) -> Result<String, RenderError> {
-    markdown_editor_core::render_page(markdown, task_token.as_deref()).map_err(RenderError::from)
+pub fn render_page_content(
+    markdown: &str,
+    task_token: Option<String>,
+) -> Result<String, RenderError> {
+    markdown_editor_core::render_page_content(markdown, task_token.as_deref())
+        .map_err(RenderError::from)
+}
+
+/// The preview page without content. See [`markdown_editor_core::EMPTY_PAGE`].
+#[uniffi::export]
+#[must_use]
+pub fn empty_page() -> String {
+    markdown_editor_core::EMPTY_PAGE.to_owned()
 }
 
 /// An edit that checks or unchecks one task. See
@@ -252,25 +264,26 @@ mod tests {
     }
 
     #[test]
-    fn renders_pages_like_the_core() {
+    fn renders_page_content_like_the_core() {
         let markdown = "# Title";
         assert_eq!(
-            render_page(markdown, None),
-            Ok(markdown_editor_core::render_page(markdown, None).unwrap())
+            render_page_content(markdown, None),
+            Ok(markdown_editor_core::render_page_content(markdown, None).unwrap())
         );
         assert_eq!(
-            render_page("- [ ] t", Some("k".into())),
-            Ok(markdown_editor_core::render_page("- [ ] t", Some("k")).unwrap())
+            render_page_content("- [ ] t", Some("k".into())),
+            Ok(markdown_editor_core::render_page_content("- [ ] t", Some("k")).unwrap())
         );
         let markdown = "a".repeat(markdown_editor_core::MAX_INPUT_BYTES + 1);
         assert!(matches!(
-            render_page(&markdown, None),
+            render_page_content(&markdown, None),
             Err(RenderError::InputTooLarge { .. })
         ));
     }
 
     #[test]
     fn page_constants_match_the_core() {
+        assert_eq!(empty_page(), markdown_editor_core::EMPTY_PAGE);
         assert_eq!(page_base_url(), markdown_editor_core::PAGE_BASE_URL);
         assert_eq!(page_stylesheet(), markdown_editor_core::PAGE_STYLESHEET);
         assert_eq!(

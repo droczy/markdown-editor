@@ -35,14 +35,18 @@ public struct DocumentEditorView: View {
     /// Checks or unchecks a task after a click on its checkbox in the
     /// preview. Ignored unless the click came from the page that is shown
     /// and the text has not changed since that page was rendered (otherwise
-    /// the index could point to a different task).
+    /// the index could point to a different task). The preview shows the
+    /// change at once, without the pause it waits for while typing.
     private func toggleTask(token: String, index: Int) {
         guard let page = preview.page, page.taskToken == token, page.text == text,
             let edit = MarkdownRenderer.taskEdit(in: text, index: index)
         else { return }
-        editor.replace(
+        if editor.replace(
             utf8Offset: edit.utf8Offset, utf8Length: 1, with: edit.replacement, ifTextIs: text,
             actionName: "Toggle Task")
+        {
+            preview.renderNow()
+        }
     }
 }
 
@@ -58,7 +62,7 @@ struct PreviewPane: View {
     @State private var noticeTask: Task<Void, Never>?
 
     var body: some View {
-        PreviewWebView(page: controller.page?.html, zoom: zoom) { url, window in
+        PreviewWebView(content: controller.page?.content, zoom: zoom) { url, window in
             let action = PreviewLinkAction(resolvedURL: url)
             if case .toggleTask(let token, let index) = action {
                 onToggleTask(token, index)
