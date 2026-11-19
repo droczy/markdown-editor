@@ -219,9 +219,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inputs larger than 10 MiB or nested deeper than 1000 levels are rejected,
   preventing a quadratic slowdown in HTML sanitization (denial of service).
 - The macOS app runs in the App Sandbox with access only to user-selected
-  files and no network access, uses the hardened runtime, links no
-  third-party dynamic libraries, and release builds do not allow debugger
-  attachment. CI fails if any of these properties change.
+  files, plus outgoing connections for WebKit (see *Changed*), uses the
+  hardened runtime, links no third-party dynamic libraries, and release
+  builds do not allow debugger attachment. CI fails if any of these
+  properties change.
 - The Rust core is linked statically; the app still loads no third-party
   dynamic libraries. The UniFFI binding generator is a separate build-time
   tool and not part of the app.
