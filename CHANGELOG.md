@@ -7,8 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Snapshot test of `docs/example.md`: the preview content of the example
+  document is recorded and reviewed by hand, so that a change in how the
+  app renders the features it shows (for example after a dependency
+  update) fails the tests.
+- `FEATURES.md` plans a command to open files from the terminal, together
+  with the folders and file tree.
+
 ### Changed
 
+- `docs/releasing.md` recommends the release rehearsal and asks to read the
+  release notes it assembles before tagging.
 - The notice after a click on a link appears at once and fades out within
   0.15 seconds; it used to fade and slide in and out over 0.2 seconds. A
   new notice replaces the current one at once. A UI test checks that the

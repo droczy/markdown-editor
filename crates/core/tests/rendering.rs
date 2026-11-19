@@ -8,7 +8,7 @@
 mod common;
 
 use common::invariants::assert_safe_html;
-use markdown_editor_core::render_html;
+use markdown_editor_core::{render_html, render_page};
 
 fn render(markdown: &str) -> String {
     let html = render_html(markdown).expect("renders");
@@ -58,4 +58,26 @@ fn gfm_strikethrough_and_autolinks() {
 #[test]
 fn unicode_text_is_preserved() {
     insta::assert_snapshot!(render("Grüße 🌍 — 日本語 — مرحبا\n\n# Ünïcödé"));
+}
+
+/// The example document in `docs/example.md` shows the features to users, on
+/// GitHub and in the app. Its snapshot is the content of the preview page as
+/// the app renders it, with task checkboxes as links (fixed token). The page
+/// template around it is tested in `page.rs`.
+#[test]
+fn example_document() {
+    let markdown = include_str!("../../../docs/example.md");
+    let html = render(markdown);
+    // The example uses only what the app supports: no raw HTML, which would
+    // show as escaped text, and no images, which show as placeholders.
+    assert!(!html.contains("&lt;"), "raw HTML in the example document");
+    assert!(!html.contains("<img"), "image in the example document");
+
+    let page = render_page(markdown, Some("snapshot")).expect("renders");
+    let content = page
+        .split_once("<main>\n")
+        .and_then(|(_, rest)| rest.split_once("</main>"))
+        .expect("page has a main element")
+        .0;
+    insta::assert_snapshot!(content);
 }
