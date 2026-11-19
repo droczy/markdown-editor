@@ -3,8 +3,10 @@
 A native, security-focused Markdown editor. macOS (Apple Silicon) first, Linux later.
 
 > **Status:** early development. The macOS app edits Markdown files with a
-> live, locked-down preview. The first beta is being prepared; there is no
-> release to download yet.
+> live, locked-down preview. Betas, starting with v0.1.0-beta.1, are
+> published under [Releases](https://github.com/droczy/markdown-editor/releases).
+> They are not notarized, so macOS asks before their first start; the
+> release notes explain what to do.
 
 ## Features
 
