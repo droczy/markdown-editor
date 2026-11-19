@@ -52,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First full security review (phase 2): report in
   `docs/security/reviews/2026-11-phase-2.md`.
 - The README explains autosave and document versions.
+- `FEATURES.md` lists what the app can do and what is planned; the README
+  summarizes it.
 - Editor and preview side by side in the macOS app, each taking half of the
   window. The editor (`NSTextView`, TextKit 1, system font) never changes
   text on its own: smart quotes and dashes, text replacement, spelling
