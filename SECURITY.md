@@ -39,7 +39,7 @@ Only the latest release receives security fixes during early development.
   shows the preview, requires it. CI ensures that the app's own code uses no
   networking APIs and the core no networking libraries.
 - **Resource limits.** Inputs above 10 MiB, nested deeper than 1000 levels
-  or expanding to more than 2,000,000 syntax tree nodes are rejected to
+  or expanding to more than 1,000,000 syntax tree nodes are rejected to
   prevent denial of service.
 - **Memory safety.** The core is written in safe Rust (`unsafe` is forbidden
   by a compiler lint).
@@ -49,6 +49,10 @@ Only the latest release receives security fixes during early development.
 - **Supply chain.** Dependencies are locked, audited (`cargo-deny`) and
   restricted to crates.io and permissive licenses; GitHub Actions are pinned
   to commit SHAs; new dependency releases are adopted after a cooldown.
+- **Releases.** Built only by the release workflow from a signed tag on
+  `main` whose CI passed, with SHA-256 checksums, an SBOM and attestations
+  of build provenance and SBOM signed by GitHub. Published releases cannot
+  be changed. See [docs/releasing.md](docs/releasing.md).
 
 - **macOS app.** Runs in the App Sandbox with access only to files the user
   opens or saves, plus outgoing connections for WebKit (see above); hardened

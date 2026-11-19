@@ -371,7 +371,7 @@ mod tests {
     fn limits_match_the_core() {
         assert_eq!(max_input_bytes(), 10 * 1024 * 1024);
         assert_eq!(max_nesting_depth(), 1_000);
-        assert_eq!(max_nodes(), 2_000_000);
+        assert_eq!(max_nodes(), 1_000_000);
     }
 
     #[test]

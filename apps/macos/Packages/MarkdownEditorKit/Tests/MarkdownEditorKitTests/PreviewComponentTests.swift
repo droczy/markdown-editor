@@ -250,9 +250,11 @@ struct PreviewWebViewConfigurationTests {
 struct MarkdownTextViewTests {
     @Test("The editor never changes text on its own")
     func configuration() {
-        let textView = NSTextView(usingTextLayoutManager: true)
-        MarkdownTextView.configure(textView)
-        #expect(textView.textLayoutManager != nil, "TextKit 2")
+        let textView = MarkdownTextView.makeTextView(text: "")
+        // TextKit 1 with non-contiguous layout copes with long paragraphs
+        // (SR-2026-004).
+        #expect(textView.textLayoutManager == nil, "uses TextKit 2")
+        #expect(textView.layoutManager?.allowsNonContiguousLayout == true)
         #expect(!textView.isRichText)
         #expect(!textView.importsGraphics)
         #expect(textView.allowsUndo)
@@ -274,10 +276,26 @@ struct MarkdownTextViewTests {
         #expect(textView.accessibilityIdentifier() == "editor")
     }
 
+    @Test("A long paragraph without line breaks opens and edits quickly (SR-2026-004)")
+    func longParagraph() {
+        // About 2 MB in one paragraph, like minified data saved as text.
+        let text = String(repeating: "[a](b) ", count: 300_000)
+        let start = ContinuousClock.now
+        // The order of SwiftUI's makeNSView: the scroll view has no size yet.
+        let textView = MarkdownTextView.makeTextView(text: text)
+        let scrollView = NSScrollView(frame: .zero)
+        scrollView.documentView = textView
+        scrollView.frame = NSRect(x: 0, y: 0, width: 600, height: 800)
+        scrollView.layoutSubtreeIfNeeded()
+        textView.insertText("x", replacementRange: NSRange(location: 1_000_000, length: 0))
+        scrollView.layoutSubtreeIfNeeded()
+        let elapsed = ContinuousClock.now - start
+        #expect(elapsed < .seconds(3), "took \(elapsed)")
+    }
+
     @Test("Typed quotes and dashes stay exactly as typed")
     func noSubstitutions() {
-        let textView = NSTextView(usingTextLayoutManager: true)
-        MarkdownTextView.configure(textView)
+        let textView = MarkdownTextView.makeTextView(text: "")
         textView.insertText(
             "\"quote\" -- 'single' (c) ...", replacementRange: textView.selectedRange())
         #expect(textView.string == "\"quote\" -- 'single' (c) ...")

@@ -48,14 +48,16 @@ pub const MAX_INPUT_BYTES: usize = 10 * 1024 * 1024;
 /// nested block quotes would take several seconds.
 pub const MAX_NESTING_DEPTH: usize = 1_000;
 
-/// Largest accepted syntax tree, in nodes (2 000 000).
+/// Largest accepted syntax tree, in nodes (1 000 000).
 ///
 /// Bounds memory use and rendering time independently of the input size,
 /// because some Markdown constructs expand to far more nodes than they have
-/// bytes. A node costs up to about 600 bytes across all rendering stages.
-/// Ordinary documents stay well below the limit: 10 MiB of prose produce
-/// about one million nodes.
-pub const MAX_NODES: usize = 2_000_000;
+/// bytes. A node costs up to about 600 bytes across all rendering stages,
+/// and up to about 2 KB in the preview's web engine, which also bounds the
+/// preview (SR-2026-005). Ordinary documents stay well below the limit:
+/// real documents have 50 to 80 nodes per KiB, and 10 MiB of dense prose
+/// produce about 700 000 nodes.
+pub const MAX_NODES: usize = 1_000_000;
 
 /// Errors that can occur while rendering Markdown.
 /// Deliberately exhaustive: adding a variant must fail to compile in every

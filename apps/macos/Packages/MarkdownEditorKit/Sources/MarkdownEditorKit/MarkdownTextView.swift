@@ -1,7 +1,12 @@
 import AppKit
 import SwiftUI
 
-/// The Markdown editor: a plain-text `NSTextView` (TextKit 2).
+/// The Markdown editor: a plain-text `NSTextView`.
+///
+/// The text view uses TextKit 1 with non-contiguous layout. TextKit 2 lays
+/// out and draws each paragraph as a whole, so a long paragraph, such as a
+/// file without line breaks or an embedded image in Base64, made the app
+/// unresponsive for minutes (SR-2026-004).
 ///
 /// Everything that would change the text without the user typing it is
 /// turned off: smart quotes and dashes, text replacement, spelling
@@ -39,10 +44,7 @@ public struct MarkdownTextView: NSViewRepresentable {
 
     /// Creates the scrollable text view.
     public func makeNSView(context: Context) -> NSScrollView {
-        let textView = NSTextView(usingTextLayoutManager: true)
-        Self.configure(textView)
-        Self.applyFont(to: textView, zoom: zoom)
-        textView.string = text
+        let textView = Self.makeTextView(text: text, zoom: zoom)
         context.coordinator.lastText = text
         textView.delegate = context.coordinator
         handle?.textView = textView
@@ -74,6 +76,18 @@ public struct MarkdownTextView: NSViewRepresentable {
         coordinator.lastText = text
         textView.string = text
         onChange(text)
+    }
+
+    /// The editor's text view (TextKit 1, see above), configured and
+    /// showing `text`. Separate for testing.
+    static func makeTextView(text: String, zoom: Double = 1) -> NSTextView {
+        let textView = NSTextView(usingTextLayoutManager: false)
+        // Lays out only what is needed, also within a long paragraph.
+        textView.layoutManager?.allowsNonContiguousLayout = true
+        configure(textView)
+        applyFont(to: textView, zoom: zoom)
+        textView.string = text
+        return textView
     }
 
     /// Applies the editor settings. Separate for testing.

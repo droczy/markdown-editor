@@ -26,6 +26,8 @@ final class LaunchTests: XCTestCase {
         editor.click()
         editor.typeText("# Hello")
         XCTAssertEqual(editor.value as? String, "# Hello")
+        // After the first launch, the privacy information stays closed.
+        XCTAssertFalse(app.windows["Privacy and Permissions"].exists, "privacy window shown again")
     }
 
     @MainActor

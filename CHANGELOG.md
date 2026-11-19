@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UI tests with real files: edit and save, autosave on close, Windows line
   endings, plain-text files, invalid UTF-8, oversized files, external
   changes and read-only files.
+- UI tests for the zoom level kept after quitting and relaunching the app,
+  the Tab key inserting a tab character, the preview's notice disappearing
+  once a document can be rendered again, and the privacy window staying
+  closed after the first launch.
 - `scripts/verify-macos-app.sh` checks the built app's signature, hardened
   runtime, architecture, entitlements and linked libraries.
 - Security review process in `docs/security`: short reviews for
@@ -51,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FEATURES.md` lists what the app can do and what is planned; the README
   summarizes it.
 - Editor and preview side by side in the macOS app, each taking half of the
-  window. The editor (`NSTextView`, TextKit 2, system font) never changes
+  window. The editor (`NSTextView`, TextKit 1, system font) never changes
   text on its own: smart quotes and dashes, text replacement, spelling
   correction, link detection, inline predictions and writing tools are off.
   Undo works per typing step. The preview updates after a short pause in
@@ -73,6 +77,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   preview page (Content Security Policy and stylesheet), and `link_action`,
   which decides what a click on a link does after the web engine resolved
   it; both are available to Swift through the FFI crate.
+- Release workflow: a signed tag `vX.Y.Z` or `vX.Y.Z-beta.N` on `main`
+  whose CI passed is built into a draft GitHub release with the app, an
+  SBOM of its Rust crates (CycloneDX, `cargo-cyclonedx`), SHA-256
+  checksums, and build provenance and SBOM attestations signed by GitHub.
+  `scripts/prepare-release.sh` checks versions, CHANGELOG and release
+  notes and packages the files; the process is described in
+  `docs/releasing.md`.
 - `scripts/check-no-network.sh` (run in CI) fails if the app's Swift code
   uses networking or URL loading APIs or hands URLs or files to other apps
   (`NSWorkspace`, Launch Services, SwiftUI `openURL` and `Link`).
@@ -114,12 +125,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Task checkboxes in the preview react to clicks anywhere on the box. With
   the web engine of macOS 27, only a one-pixel strip next to the checkbox
   was clickable, so clicking the checkbox itself did nothing.
+- Nightly mutation testing completes again. Two mutants of the percent
+  decoding of e-mail addresses turned its loop into one that allocated
+  without bound, and the runner was shut down without any result. The
+  decoding now splits at `%` instead of counting positions (same results,
+  more tests), so these mutants no longer exist. The job runs in four
+  parallel shards, limits every process to 8 GiB of address space so that
+  such a mutant fails like any other, checks that this limit is enforced,
+  and keeps the per-mutant logs for 14 days.
 - CI fuzzing jobs build for the glibc Linux target explicitly; the
   prebuilt `cargo-fuzz` binary otherwise defaulted to musl, which is
   incompatible with the sanitizers.
 
 ### Security
 
+- The editor stays responsive with very long paragraphs (denial of
+  service, SR-2026-004). Documents with a paragraph of several megabytes,
+  such as data without line breaks or an embedded Base64 image, made the
+  app unresponsive for minutes and use several gigabytes of memory: the
+  editor's text layout (TextKit 2) took time that grew much faster than
+  the paragraph. The editor now uses TextKit 1 with non-contiguous layout:
+  a 6 MB paragraph opens within a few seconds, and typing in it stays
+  immediate. Nothing visible changes. No released version was affected.
 - The preview is locked down in independent layers: a Content Security
   Policy that allows nothing but the preview's own stylesheet, a content
   blocker that refuses every load, a navigation policy that cancels every
@@ -154,14 +181,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   values that would be excessively expensive to escape are removed; real
   links, titles and image descriptions stay far below that limit. No
   released version was affected.
-- Documents whose syntax tree would exceed 2,000,000 nodes are rejected
+- The node limit also bounds the memory of the preview (denial of service,
+  SR-2026-005). The preview's web engine needs up to about 2 KB per node,
+  so documents of 2 to 3 MB within the earlier limit of 2,000,000 nodes
+  made it use up to 3.4 GB of memory, in addition to the app. The limit is
+  now 1,000,000 nodes: at most about 1.8 GB for the preview and 0.5 GB for
+  the app. Real documents have 50 to 80 nodes per KiB and stay below the
+  limit up to the size limit of 10 MiB. No released version was affected.
+- Documents whose syntax tree would exceed 1,000,000 nodes are rejected
   (denial of service). Some Markdown constructs expand to far more nodes
   than they have bytes, so small crafted inputs could make rendering
   exhaust memory. Parsing now stops as soon as the limit is reached, which
   bounds memory use and rendering time independently of the input size:
-  10 MiB documents previously needed up to 4 GB of memory, now at most
-  about 1.2 GB. Typical documents up to the size limit, such as 10 MiB of
-  prose, are not affected. The limit is available to the app as
+  10 MiB documents previously needed up to 4 GB of memory, the core now
+  at most about 0.6 GB. Typical documents up to the size limit, such as
+  10 MiB of prose, are not affected. The limit is available to the app as
   `MarkdownRenderer.maxNodes`, and exceeding it is reported as a typed
   error. No released version was affected.
 - Updated ammonia from 4.2.4 to 4.2.5, which fixes RUSTSEC-2026-0533
