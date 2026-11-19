@@ -9,14 +9,13 @@ struct EditorHandleTests {
     /// A text view with an undo manager, like in the document window.
     @MainActor
     private final class Editor: NSObject, NSTextViewDelegate {
-        let textView = NSTextView(usingTextLayoutManager: true)
+        let textView: NSTextView
         let handle = EditorHandle()
         let undoManager = UndoManager()
 
         init(_ text: String) {
+            textView = MarkdownTextView.makeTextView(text: text)
             super.init()
-            MarkdownTextView.configure(textView)
-            textView.string = text
             textView.delegate = self
             handle.textView = textView
         }

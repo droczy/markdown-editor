@@ -60,11 +60,11 @@ final class DocumentFileTests: XCTestCase {
     }
 
     /// Opens `url` in the app under test and returns its editor.
-    private func open(_ url: URL) throws -> XCUIElement {
+    private func open(_ url: URL, timeout: TimeInterval = 10) throws -> XCUIElement {
         openInAppUnderTest(url, app: launchedApp)
         let editor = launchedApp.textViews["editor"].firstMatch
         XCTAssertTrue(
-            editor.waitForExistence(timeout: 10),
+            editor.waitForExistence(timeout: timeout),
             "editor did not appear for \(url.lastPathComponent)")
         return editor
     }
@@ -217,6 +217,33 @@ final class DocumentFileTests: XCTestCase {
             XCTAssertEqual(
                 try contents(of: url), external, "external edit was overwritten silently")
         }
+    }
+
+    /// A paragraph of several megabytes, such as minified data saved as text,
+    /// used to make the app unresponsive for minutes (SR-2026-004).
+    @MainActor
+    func testFileWithoutLineBreaksCanBeEdited() throws {
+        let url = try fixture("one-line.md", text: String(repeating: "[a](b) ", count: 900_000))
+        let start = Date()
+        let editor = try open(url, timeout: 20)
+
+        // The app still responds: the preview explains that the document is
+        // too complex, and the end of the text can be edited and saved.
+        XCTAssertTrue(
+            launchedApp.descendants(matching: .any)["previewError"].waitForExistence(timeout: 20),
+            "no notice in the preview")
+        append("end", to: editor)
+        launchedApp.typeKey("s", modifierFlags: .command)
+        let deadline = Date().addingTimeInterval(20)
+        while Date() < deadline,
+            (try? Data(contentsOf: url))?.suffix(3) != Data("end".utf8)
+        {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertEqual(try contents(of: url).suffix(3), Data("end".utf8), "typed text not saved")
+        // About 10 s locally, most of it spent by UI automation on the long
+        // text; several minutes before the fix.
+        XCTAssertLessThan(Date().timeIntervalSince(start), 60, "editing was too slow")
     }
 
     @MainActor

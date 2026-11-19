@@ -53,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/security/reviews/2026-11-phase-2.md`.
 - The README explains autosave and document versions.
 - Editor and preview side by side in the macOS app, each taking half of the
-  window. The editor (`NSTextView`, TextKit 2, system font) never changes
+  window. The editor (`NSTextView`, TextKit 1, system font) never changes
   text on its own: smart quotes and dashes, text replacement, spelling
   correction, link detection, inline predictions and writing tools are off.
   Undo works per typing step. The preview updates after a short pause in
@@ -137,6 +137,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- The editor stays responsive with very long paragraphs (denial of
+  service, SR-2026-004). Documents with a paragraph of several megabytes,
+  such as data without line breaks or an embedded Base64 image, made the
+  app unresponsive for minutes and use several gigabytes of memory: the
+  editor's text layout (TextKit 2) took time that grew much faster than
+  the paragraph. The editor now uses TextKit 1 with non-contiguous layout:
+  a 6 MB paragraph opens within a few seconds, and typing in it stays
+  immediate. Nothing visible changes. No released version was affected.
 - The preview is locked down in independent layers: a Content Security
   Policy that allows nothing but the preview's own stylesheet, a content
   blocker that refuses every load, a navigation policy that cancels every

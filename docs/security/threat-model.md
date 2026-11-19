@@ -109,7 +109,7 @@ protected by signed commits.
 
 | ID | Threat | Mitigation | Status |
 | --- | --- | --- | --- |
-| D1 | Large or pathological documents exhaust CPU or memory | Limits: 50 MiB per file, 10 MiB per render, nesting depth 1000, 2,000,000 syntax tree nodes, linear-time escaping. Each limit has worst-case tests; fuzzing | in place |
+| D1 | Large or pathological documents exhaust CPU or memory | Limits: 50 MiB per file, 10 MiB per render, nesting depth 1000, 2,000,000 syntax tree nodes, linear-time escaping. The editor lays out text with TextKit 1 and non-contiguous layout, so long paragraphs stay responsive (SR-2026-004). Each limit has worst-case tests, the editor a test with a 6 MB paragraph; fuzzing | in place |
 | D2 | Deep nesting overflows the stack | Iterative depth check; tests on a 512 KiB stack | in place |
 | D3 | An unexpected panic in the core crashes the app and loses unsaved text | `panic = unwind`; UniFFI turns panics into Swift errors | in place |
 | D4 | Rendering blocks the user interface | Rendering off the main actor, after a pause in typing; at most one render at a time | in place |
