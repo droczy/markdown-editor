@@ -1,0 +1,124 @@
+---
+source: crates/core/tests/rendering.rs
+expression: content
+---
+<h1>Example document</h1>
+<p>This document shows what Markdown Editor can do. Open it in the app to see
+the editor and the live preview side by side, or read it here: GitHub
+renders the same Markdown.</p>
+<p>To try it in the app, download this file (on GitHub: <em>Download raw
+file</em>) and open it with <em>File &gt; Open</em>.</p>
+<h2>Text</h2>
+<p>Paragraphs can contain <strong>bold</strong>, <em>italic</em>, <em><strong>bold italic</strong></em>,
+<del>strikethrough</del> and <code>inline code</code>. A line that ends with a backslash<br>
+continues on a new line.</p>
+<blockquote>
+<p>A quote can contain <em>formatting</em></p>
+<blockquote>
+<p>and other quotes.</p>
+</blockquote>
+</blockquote>
+<hr>
+<h2>Lists</h2>
+<ul>
+<li>Bullet points
+<ul>
+<li>can be nested
+<ul>
+<li>several levels deep</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>and continue afterwards</li>
+</ul>
+<ol>
+<li>Numbered lists</li>
+<li>count on their own
+<ol>
+<li>and can be nested as well</li>
+</ol>
+</li>
+</ol>
+<h2>Tasks</h2>
+<p>In the app, a click on a checkbox in the preview checks or unchecks the
+task: exactly the character between the brackets changes in the editor,
+and ⌘Z undoes it.</p>
+<ul>
+<li><a href="markdown-preview://task/snapshot/0" role="checkbox" aria-checked="true" aria-label="Task"><input type="checkbox" tabindex="-1" aria-hidden="true" checked=""></a> Install Markdown Editor</li>
+<li><a href="markdown-preview://task/snapshot/1" role="checkbox" aria-checked="true" aria-label="Task"><input type="checkbox" tabindex="-1" aria-hidden="true" checked=""></a> Open this document</li>
+<li><a href="markdown-preview://task/snapshot/2" role="checkbox" aria-checked="false" aria-label="Task"><input type="checkbox" tabindex="-1" aria-hidden="true"></a> Check this task in the preview
+<ul>
+<li><a href="markdown-preview://task/snapshot/3" role="checkbox" aria-checked="false" aria-label="Task"><input type="checkbox" tabindex="-1" aria-hidden="true"></a> Nested tasks work as well</li>
+</ul>
+</li>
+<li><a href="markdown-preview://task/snapshot/4" role="checkbox" aria-checked="false" aria-label="Task"><input type="checkbox" tabindex="-1" aria-hidden="true"></a> Press ⌘Z to undo</li>
+</ul>
+<h2>Tables</h2>
+<table>
+<thead>
+<tr>
+<th align="left">Action</th>
+<th align="center">Menu</th>
+<th align="right">Shortcut</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">Save</td>
+<td align="center">File &gt; Save</td>
+<td align="right">⌘S</td>
+</tr>
+<tr>
+<td align="left">Undo</td>
+<td align="center">Edit &gt; Undo</td>
+<td align="right">⌘Z</td>
+</tr>
+<tr>
+<td align="left">Zoom in</td>
+<td align="center">View &gt; Zoom In</td>
+<td align="right">⌘+</td>
+</tr>
+<tr>
+<td align="left">Zoom out</td>
+<td align="center">View &gt; Zoom Out</td>
+<td align="right">⌘−</td>
+</tr>
+<tr>
+<td align="left">Actual size</td>
+<td align="center">View &gt; Actual Size</td>
+<td align="right">⌘0</td>
+</tr>
+</tbody>
+</table>
+<p>Columns can be aligned to the left, the center or the right.</p>
+<h2>Code</h2>
+<p>Inline <code>code</code> and code blocks keep every character as written:</p>
+<pre lang="rust"><code>fn main() {
+    println!("Hello from Markdown Editor");
+}
+</code></pre>
+<pre lang="sh"><code>shasum -a 256 -c SHA256SUMS
+</code></pre>
+<pre><code>An indented block is code as well.
+</code></pre>
+<h2>Links</h2>
+<p>A click on a link in the preview never opens it: the app copies the
+address and shows the real host in a short notice. Try it with
+<a href="https://github.com/droczy/markdown-editor" rel="noopener noreferrer">the project on GitHub</a>.</p>
+<p>Web addresses such as <a href="https://example.com" rel="noopener noreferrer">https://example.com</a> and <a href="http://www.example.org" rel="noopener noreferrer">www.example.org</a> become links
+by themselves. A click on an email link copies only the address:
+<a href="mailto:someone@example.com?subject=Hello" rel="noopener noreferrer">write to someone</a>.</p>
+<h2>Things to try in the app</h2>
+<ul>
+<li><strong>Zoom</strong> editor and preview together with <em>View &gt; Zoom In</em> (⌘+),
+<em>Zoom Out</em> (⌘−) and <em>Actual Size</em> (⌘0). The zoom level is kept.</li>
+<li><strong>Light and dark:</strong> switch the appearance in <em>System Settings</em>, and the
+preview follows.</li>
+<li><strong>Autosave:</strong> every change is saved on its own; earlier versions are
+under <em>File &gt; Revert To</em>.</li>
+<li><strong>Privacy:</strong> <em>Help &gt; Privacy and Permissions</em> explains what the app may
+do, and what it never does. It works offline and sends nothing anywhere.</li>
+</ul>
+<p>The <a href="https://github.com/droczy/markdown-editor/blob/main/FEATURES.md" rel="noopener noreferrer">feature list</a>
+describes everything in detail, including what is planned.</p>

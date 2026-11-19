@@ -35,10 +35,13 @@ them.
    - `scripts/prepare-release.sh check vX.Y.Z` must pass.
 2. **Merge** the pull request once all checks pass, and wait for the CI run
    on `main`.
-3. **Rehearsal (optional):** *Actions → Release → Run workflow* on `main`
-   with the planned tag. It runs every check and builds the files, which
-   are kept as a workflow artifact for 14 days; nothing is attested or
-   published.
+3. **Rehearsal (recommended):** *Actions → Release → Run workflow* on
+   `main` with the planned tag. It runs every check and builds the files,
+   which are kept as a workflow artifact for 14 days; nothing is attested
+   or published. Read `release-notes.md` in the artifact: the release will
+   show exactly this text, assembled from the CHANGELOG and the notes file,
+   and the CHANGELOG entries of a whole development phase may contradict
+   each other once they stand side by side.
 4. **Tag** the merge commit with a signed, annotated tag and push it:
 
    ```sh
