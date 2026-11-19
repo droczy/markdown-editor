@@ -112,6 +112,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Task checkboxes in the preview react to clicks anywhere on the box. With
   the web engine of macOS 27, only a one-pixel strip next to the checkbox
   was clickable, so clicking the checkbox itself did nothing.
+- Nightly mutation testing completes again. Two mutants of the percent
+  decoding of e-mail addresses turned its loop into one that allocated
+  without bound, and the runner was shut down without any result. The
+  decoding now splits at `%` instead of counting positions (same results,
+  more tests), so these mutants no longer exist. The job runs in four
+  parallel shards, limits every process to 8 GiB of address space so that
+  such a mutant fails like any other, checks that this limit is enforced,
+  and keeps the per-mutant logs for 14 days.
 - CI fuzzing jobs build for the glibc Linux target explicitly; the
   prebuilt `cargo-fuzz` binary otherwise defaulted to musl, which is
   incompatible with the sanitizers.
