@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UI tests with real files: edit and save, autosave on close, Windows line
   endings, plain-text files, invalid UTF-8, oversized files, external
   changes and read-only files.
+- UI tests for the zoom level kept after quitting and relaunching the app,
+  the Tab key inserting a tab character, the preview's notice disappearing
+  once a document can be rendered again, and the privacy window staying
+  closed after the first launch.
 - `scripts/verify-macos-app.sh` checks the built app's signature, hardened
   runtime, architecture, entitlements and linked libraries.
 - Security review process in `docs/security`: short reviews for
@@ -71,6 +75,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   preview page (Content Security Policy and stylesheet), and `link_action`,
   which decides what a click on a link does after the web engine resolved
   it; both are available to Swift through the FFI crate.
+- Release workflow: a signed tag `vX.Y.Z` or `vX.Y.Z-beta.N` on `main`
+  whose CI passed is built into a draft GitHub release with the app, an
+  SBOM of its Rust crates (CycloneDX, `cargo-cyclonedx`), SHA-256
+  checksums, and build provenance and SBOM attestations signed by GitHub.
+  `scripts/prepare-release.sh` checks versions, CHANGELOG and release
+  notes and packages the files; the process is described in
+  `docs/releasing.md`.
 - `scripts/check-no-network.sh` (run in CI) fails if the app's Swift code
   uses networking or URL loading APIs or hands URLs or files to other apps
   (`NSWorkspace`, Launch Services, SwiftUI `openURL` and `Link`).
@@ -109,6 +120,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Task checkboxes in the preview react to clicks anywhere on the box. With
+  the web engine of macOS 27, only a one-pixel strip next to the checkbox
+  was clickable, so clicking the checkbox itself did nothing.
+- Nightly mutation testing completes again. Two mutants of the percent
+  decoding of e-mail addresses turned its loop into one that allocated
+  without bound, and the runner was shut down without any result. The
+  decoding now splits at `%` instead of counting positions (same results,
+  more tests), so these mutants no longer exist. The job runs in four
+  parallel shards, limits every process to 8 GiB of address space so that
+  such a mutant fails like any other, checks that this limit is enforced,
+  and keeps the per-mutant logs for 14 days.
 - CI fuzzing jobs build for the glibc Linux target explicitly; the
   prebuilt `cargo-fuzz` binary otherwise defaulted to musl, which is
   incompatible with the sanitizers.

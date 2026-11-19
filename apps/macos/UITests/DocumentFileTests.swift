@@ -59,26 +59,9 @@ final class DocumentFileTests: XCTestCase {
         try fixture(name, bytes: Data(text.utf8))
     }
 
-    /// Sends `url` to exactly the app under test. `XCUIApplication.open(_:)`
-    /// would use the system's default app for the file type, which differs
-    /// between machines (e.g. `.txt` opening in another editor).
-    private func send(_ url: URL) throws {
-        let appURL = Bundle.main.bundleURL.deletingLastPathComponent()
-            .appendingPathComponent("MarkdownEditor.app")
-        let opened = expectation(description: "open \(url.lastPathComponent)")
-        NSWorkspace.shared.open(
-            [url], withApplicationAt: appURL, configuration: NSWorkspace.OpenConfiguration()
-        ) { _, error in
-            XCTAssertNil(error)
-            opened.fulfill()
-        }
-        wait(for: [opened], timeout: 10)
-        launchedApp.activate()
-    }
-
     /// Opens `url` in the app under test and returns its editor.
     private func open(_ url: URL, timeout: TimeInterval = 10) throws -> XCUIElement {
-        try send(url)
+        openInAppUnderTest(url, app: launchedApp)
         let editor = launchedApp.textViews["editor"].firstMatch
         XCTAssertTrue(
             editor.waitForExistence(timeout: timeout),
@@ -177,7 +160,7 @@ final class DocumentFileTests: XCTestCase {
     func testNonUTF8FileIsRejectedAndLeftUnchanged() throws {
         let latin1 = try XCTUnwrap("Grüße".data(using: .isoLatin1))
         let url = try fixture("latin1.md", bytes: latin1)
-        try send(url)
+        openInAppUnderTest(url, app: launchedApp)
 
         XCTAssertTrue(errorIsShown(containing: "UTF-8"), "no UTF-8 error shown")
         XCTAssertFalse(launchedApp.textViews["editor"].exists)
@@ -188,7 +171,7 @@ final class DocumentFileTests: XCTestCase {
     func testTooLargeFileIsRejectedAndLeftUnchanged() throws {
         let bytes = Data(repeating: 0x61, count: 50 * 1024 * 1024 + 1)
         let url = try fixture("huge.md", bytes: bytes)
-        try send(url)
+        openInAppUnderTest(url, app: launchedApp)
 
         XCTAssertTrue(errorIsShown(containing: "too large"), "no size error shown")
         XCTAssertFalse(launchedApp.textViews["editor"].exists)
