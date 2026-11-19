@@ -64,7 +64,8 @@ In this order:
 1. Comfort: syntax highlighting in the editor, search and replace, scroll
    sync between editor and preview, code highlighting in the preview, local
    images and links to headings.
-2. Folders: a file tree, and relative links that open other Markdown files.
+2. Folders: a file tree, relative links that open other Markdown files, and
+   a command to open files from the terminal.
 3. Math (LaTeX).
 4. Mermaid diagrams.
 5. Version 1.0 for macOS: PDF export, settings, comparing document
