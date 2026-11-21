@@ -171,7 +171,8 @@ public final class PreviewCoordinator: NSObject, WKNavigationDelegate, WKUIDeleg
     private weak var webView: WKWebView?
     /// Whether the content blocker is installed; nothing loads before.
     private var isReady = false
-    /// Whether the empty page is not loaded, loading or ready for content.
+    /// Whether the empty page is not loaded, loading, ready for content or
+    /// given up on.
     private var page = PageState.notLoaded
     /// The content most recently requested by ``show(_:)``.
     private var requestedContent: String?
@@ -193,6 +194,9 @@ public final class PreviewCoordinator: NSObject, WKNavigationDelegate, WKUIDeleg
 
     private enum PageState {
         case notLoaded, loading, loaded
+        /// The page failed too often since the content last changed; it is
+        /// loaded again only for new content.
+        case failed
     }
 
     init(onLink: @escaping @MainActor (URL, NSWindow?) -> Void) {
@@ -221,6 +225,9 @@ public final class PreviewCoordinator: NSObject, WKNavigationDelegate, WKUIDeleg
         guard content != requestedContent else { return }
         requestedContent = content
         retriesLeft = Self.retries
+        if page == .failed {
+            page = .notLoaded
+        }
         update()
     }
 
@@ -237,7 +244,7 @@ public final class PreviewCoordinator: NSObject, WKNavigationDelegate, WKUIDeleg
             expectedLoads += 1
             webView.loadHTMLString(
                 MarkdownRenderer.emptyPage, baseURL: MarkdownRenderer.pageBaseURL)
-        case .loading:
+        case .loading, .failed:
             return
         case .loaded:
             guard content != shownContent else { return }
@@ -246,7 +253,8 @@ public final class PreviewCoordinator: NSObject, WKNavigationDelegate, WKUIDeleg
                 let replaced = await Self.replaceContent(of: webView, with: content)
                 isReplacing = false
                 if page != .loaded {
-                    // The page failed in the meantime: load it again.
+                    // The page failed in the meantime: load it again, if
+                    // ``pageFailed()`` did not give up.
                     update()
                 } else if replaced {
                     shownContent = content
@@ -259,12 +267,16 @@ public final class PreviewCoordinator: NSObject, WKNavigationDelegate, WKUIDeleg
     }
 
     /// Loads the page again after it failed, unless it failed too often
-    /// since the content last changed.
+    /// since the content last changed. Then it stays failed, also for a
+    /// content replacement that ends later, until the content changes.
     private func pageFailed() {
-        page = .notLoaded
         shownContent = nil
-        guard retriesLeft > 0 else { return }
+        guard retriesLeft > 0 else {
+            page = .failed
+            return
+        }
         retriesLeft -= 1
+        page = .notLoaded
         update()
     }
 

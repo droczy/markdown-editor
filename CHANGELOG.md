@@ -45,7 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   blocker alone each stop every request and script.
 - After the preview's web content process ends, for example because it
   ran out of memory, the preview loads its page again at most twice until
-  the document changes; before, it tried again without limit
+  the document changes, also when the process ends while the preview
+  replaces its content; before, it tried again without limit
   (recommendation of the v0.1.0-beta.1 review).
 
 ## [0.1.0-beta.1] - 2026-11-19
