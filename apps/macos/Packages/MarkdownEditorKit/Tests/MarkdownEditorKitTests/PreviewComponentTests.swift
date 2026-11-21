@@ -248,6 +248,84 @@ struct PreviewWebViewConfigurationTests {
     }
 }
 
+/// The mouse pointer over the preview. The pointer is shared by the whole
+/// process, so these tests run one after the other.
+@MainActor
+@Suite("Preview pointer", .serialized)
+struct PreviewPointerTests {
+    private func event(_ type: NSEvent.EventType) throws -> NSEvent {
+        if type == .mouseMoved {
+            return try #require(
+                NSEvent.mouseEvent(
+                    with: .mouseMoved, location: .zero, modifierFlags: [], timestamp: 0,
+                    windowNumber: 0, context: nil, eventNumber: 0, clickCount: 0, pressure: 0))
+        }
+        return try #require(
+            NSEvent.enterExitEvent(
+                with: type, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
+                context: nil, eventNumber: 0, trackingNumber: 0, userData: nil))
+    }
+
+    @Test("The web view follows the mouse in a tracking area of its own")
+    func trackingArea() throws {
+        let webView = PreviewWKWebView(
+            frame: .zero, configuration: PreviewWebView.makeConfiguration())
+        let area = try #require(webView.trackingAreas.first { $0.owner === webView.pointer })
+        #expect(
+            area.options.isSuperset(of: [
+                .mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect,
+            ]))
+    }
+
+    @Test("Only a move after the mouse entered counts")
+    func tracking() throws {
+        let pointer = PointerTracker()
+        #expect(!pointer.hasMovedInside)
+        pointer.mouseEntered(with: try event(.mouseEntered))
+        #expect(!pointer.hasMovedInside)
+        pointer.mouseMoved(with: try event(.mouseMoved))
+        #expect(pointer.hasMovedInside)
+        pointer.mouseExited(with: try event(.mouseExited))
+        #expect(!pointer.hasMovedInside)
+        pointer.mouseMoved(with: try event(.mouseMoved))
+        pointer.mouseEntered(with: try event(.mouseEntered))
+        #expect(!pointer.hasMovedInside)
+    }
+
+    @Test("An update keeps the page's pointer once the mouse moved on the page")
+    func keepsPointer() throws {
+        let webView = PreviewWKWebView(
+            frame: NSRect(x: 0, y: 0, width: 200, height: 100),
+            configuration: PreviewWebView.makeConfiguration())
+        let window = NSWindow(
+            contentRect: webView.frame, styleMask: [.titled], backing: .buffered, defer: true)
+        window.contentView = webView
+        webView.pointer.mouseEntered(with: try event(.mouseEntered))
+        webView.pointer.mouseMoved(with: try event(.mouseMoved))
+        NSCursor.pointingHand.set()
+
+        webView.cursorUpdate(with: try event(.cursorUpdate))
+
+        #expect(NSCursor.current == NSCursor.pointingHand)
+    }
+
+    @Test("Before the mouse moved on the page, AppKit sets the pointer")
+    func defaultPointer() throws {
+        let webView = PreviewWKWebView(
+            frame: NSRect(x: 0, y: 0, width: 200, height: 100),
+            configuration: PreviewWebView.makeConfiguration())
+        let window = NSWindow(
+            contentRect: webView.frame, styleMask: [.titled], backing: .buffered, defer: true)
+        window.contentView = webView
+        webView.pointer.mouseEntered(with: try event(.mouseEntered))
+        NSCursor.pointingHand.set()
+
+        webView.cursorUpdate(with: try event(.cursorUpdate))
+
+        #expect(NSCursor.current == NSCursor.arrow)
+    }
+}
+
 @MainActor
 @Suite("Editor")
 struct MarkdownTextViewTests {
