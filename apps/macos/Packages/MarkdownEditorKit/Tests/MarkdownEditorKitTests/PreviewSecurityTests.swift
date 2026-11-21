@@ -285,6 +285,53 @@ struct PreviewSecurityTests {
     }
 }
 
+/// Hands every navigation event to the coordinator and, while `isEnding` is
+/// set, reports the end of the page's process right after each page load,
+/// while the coordinator replaces the content: as with a document whose
+/// content makes the process end every time it is put into the page. WebKit
+/// reports the end of the process before the replacing script returns.
+@MainActor
+private final class EndingProcess: NSObject, WKNavigationDelegate {
+    private let coordinator: PreviewCoordinator
+    var isEnding = true
+
+    init(_ coordinator: PreviewCoordinator) {
+        self.coordinator = coordinator
+    }
+
+    func webView(
+        _ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction
+    ) async -> WKNavigationActionPolicy {
+        await coordinator.webView(webView, decidePolicyFor: navigationAction)
+    }
+
+    func webView(
+        _ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse
+    ) async -> WKNavigationResponsePolicy {
+        await coordinator.webView(webView, decidePolicyFor: navigationResponse)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
+        coordinator.webView(webView, didFinish: navigation)
+        if isEnding {
+            coordinator.webViewWebContentProcessDidTerminate(webView)
+        }
+    }
+
+    func webView(
+        _ webView: WKWebView, didFail navigation: WKNavigation?, withError error: any Error
+    ) {
+        coordinator.webView(webView, didFail: navigation, withError: error)
+    }
+
+    func webView(
+        _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation?,
+        withError error: any Error
+    ) {
+        coordinator.webView(webView, didFailProvisionalNavigation: navigation, withError: error)
+    }
+}
+
 @MainActor
 @Suite("Preview coordinator", .serialized)
 struct PreviewCoordinatorTests {
@@ -404,6 +451,26 @@ struct PreviewCoordinatorTests {
         coordinator.show(try await content(2, lines: 1))
         await webView.waitUntilLoaded(containing: "version-2")
         #expect(coordinator.pageLoads == 2 + PreviewCoordinator.retries)
+    }
+
+    @Test("The limit holds when the page's process ends while the content is replaced")
+    func reloadLimitHoldsWhileReplacing() async throws {
+        let (webView, coordinator, _) = makePreview()
+        let endingProcess = EndingProcess(coordinator)
+        webView.navigationDelegate = endingProcess
+        coordinator.show(try await content(1, lines: 1))
+        await eventually("the page was loaded again up to the limit") {
+            coordinator.pageLoads >= 1 + PreviewCoordinator.retries
+        }
+        try await Task.sleep(for: .milliseconds(500))
+        #expect(coordinator.pageLoads == 1 + PreviewCoordinator.retries)
+
+        // New content gets new attempts.
+        endingProcess.isEnding = false
+        coordinator.show(try await content(2, lines: 1))
+        await webView.waitUntilLoaded(containing: "version-2")
+        #expect(coordinator.pageLoads == 2 + PreviewCoordinator.retries)
+        withExtendedLifetime(endingProcess) {}
     }
 
     @Test("A click on a task checkbox is handed to the app as a task link")
