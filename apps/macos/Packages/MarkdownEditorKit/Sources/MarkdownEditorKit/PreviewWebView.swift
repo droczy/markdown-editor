@@ -2,31 +2,39 @@ import AppKit
 import SwiftUI
 import WebKit
 
-/// Shows a preview page from ``MarkdownRenderer/renderPage(_:)``.
+/// Shows preview content from
+/// ``MarkdownRenderer/renderPageContent(_:taskToken:)``.
 ///
-/// The page is untrusted content, so the web view is locked down in several
-/// independent ways (see ``PreviewWebView/makeConfiguration()``):
-/// JavaScript of the page is disabled, a content blocker refuses every load
-/// apart from the page itself, nothing is stored on disk, and every
-/// navigation is cancelled. Clicked links are handed to `onLink` instead.
+/// The web view loads ``MarkdownRenderer/emptyPage`` once and then shows
+/// every new version of the document by replacing the content of the page's
+/// `main` element. The page is not reloaded, so an edit appears at once and
+/// the scroll position stays where it is.
 ///
-/// The app itself runs two fixed scripts in its own, isolated JavaScript
-/// world, to keep the scroll position when the page is replaced. The page
-/// cannot see or change these scripts.
+/// The content is untrusted, so the web view is locked down in several
+/// independent ways (see ``PreviewWebView/makeConfiguration()``): the page's
+/// Content Security Policy, which applies to the replaced content as well,
+/// JavaScript of the page disabled, a content blocker that refuses every load
+/// apart from the page itself, nothing stored on disk, and every navigation
+/// cancelled. Clicked links are handed to `onLink` instead.
+///
+/// The app itself runs one fixed script in its own, isolated JavaScript
+/// world to replace the content; the content is passed to it as data. The
+/// page cannot see or change this script.
 public struct PreviewWebView: NSViewRepresentable {
-    /// The page to show; `nil` shows nothing.
-    public let page: String?
+    /// The content to show; `nil` shows nothing.
+    public let content: String?
     /// Zoom factor of the page (1 is the normal size).
     public let zoom: Double
     /// Called with the resolved URL and the preview's window when the user
     /// clicks a link.
     public let onLink: @MainActor (URL, NSWindow?) -> Void
 
-    /// Creates a preview for `page`.
+    /// Creates a preview for `content`.
     public init(
-        page: String?, zoom: Double = 1, onLink: @escaping @MainActor (URL, NSWindow?) -> Void
+        content: String?, zoom: Double = 1,
+        onLink: @escaping @MainActor (URL, NSWindow?) -> Void
     ) {
-        self.page = page
+        self.content = content
         self.zoom = zoom
         self.onLink = onLink
     }
@@ -43,14 +51,14 @@ public struct PreviewWebView: NSViewRepresentable {
         return webView
     }
 
-    /// Shows the current page.
+    /// Shows the current content.
     public func updateNSView(_ webView: PreviewWKWebView, context: Context) {
         context.coordinator.onLink = onLink
         if webView.pageZoom != zoom {
             webView.pageZoom = zoom
         }
-        if let page {
-            context.coordinator.show(page)
+        if let content {
+            context.coordinator.show(content)
         }
     }
 
@@ -149,29 +157,43 @@ public final class PreviewWKWebView: WKWebView {
     }
 }
 
-/// Loads pages into the preview's web view and enforces the navigation rules.
+/// Loads the preview page, replaces its content and enforces the navigation
+/// rules.
 @MainActor
 public final class PreviewCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     /// Called with the resolved URL and the window when the user clicks a
     /// link.
     var onLink: @MainActor (URL, NSWindow?) -> Void
 
+    /// Number of times the empty page was loaded (for tests).
+    private(set) var pageLoads = 0
+
     private weak var webView: WKWebView?
     /// Whether the content blocker is installed; nothing loads before.
     private var isReady = false
-    /// The page most recently requested by ``show(_:)``.
-    private var requestedPage: String?
-    /// A page waiting to be loaded.
-    private var pendingPage: String?
-    /// Whether a page is loading right now.
-    private var isLoading = false
-    /// Whether a page has been shown already (there is a scroll position).
-    private var hasShownPage = false
+    /// Whether the empty page is not loaded, loading or ready for content.
+    private var page = PageState.notLoaded
+    /// The content most recently requested by ``show(_:)``.
+    private var requestedContent: String?
+    /// The content the page shows, if it shows the requested one or an
+    /// earlier one.
+    private var shownContent: String?
+    /// Whether the content is being replaced right now.
+    private var isReplacing = false
+    /// How often the page may still be loaded again after it failed (its
+    /// process ended, or the content could not be replaced) before the
+    /// content changes. Bounds the work a document can cause, for example
+    /// one that makes the page's process run out of memory every time.
+    private var retriesLeft = PreviewCoordinator.retries
     /// Number of loads started by the app that the navigation policy has not
     /// seen yet. Every other navigation is refused.
     private var expectedLoads = 0
-    /// Scroll position to restore once the loading page has finished.
-    private var scrollPosition: Double?
+
+    static let retries = 2
+
+    private enum PageState {
+        case notLoaded, loading, loaded
+    }
 
     init(onLink: @escaping @MainActor (URL, NSWindow?) -> Void) {
         self.onLink = onLink
@@ -186,7 +208,7 @@ public final class PreviewCoordinator: NSObject, WKNavigationDelegate, WKUIDeleg
                 let rules = try await ContentBlocker.ruleList()
                 webView.configuration.userContentController.add(rules)
                 isReady = true
-                loadIfIdle()
+                update()
             } catch {
                 // Fail closed: without the content blocker, nothing is shown.
                 assertionFailure("content blocker could not be compiled: \(error)")
@@ -194,46 +216,81 @@ public final class PreviewCoordinator: NSObject, WKNavigationDelegate, WKUIDeleg
         }
     }
 
-    /// Shows `page`, replacing the current one while keeping the scroll
-    /// position.
-    func show(_ page: String) {
-        guard page != requestedPage else { return }
-        requestedPage = page
-        pendingPage = page
-        loadIfIdle()
+    /// Shows `content` in place of the current content.
+    func show(_ content: String) {
+        guard content != requestedContent else { return }
+        requestedContent = content
+        retriesLeft = Self.retries
+        update()
     }
 
-    private func loadIfIdle() {
-        guard isReady, !isLoading, let page = pendingPage, let webView else { return }
-        pendingPage = nil
-        isLoading = true
-        Task {
-            if hasShownPage {
-                scrollPosition = await Self.scrollPosition(of: webView)
-            }
+    /// Takes the next step towards showing the requested content: loads the
+    /// empty page if needed, then replaces its content. One step at a time;
+    /// each step calls this again when it ends.
+    private func update() {
+        guard isReady, !isReplacing, let webView, let content = requestedContent else { return }
+        switch page {
+        case .notLoaded:
+            page = .loading
+            shownContent = nil
+            pageLoads += 1
             expectedLoads += 1
-            webView.loadHTMLString(page, baseURL: MarkdownRenderer.pageBaseURL)
+            webView.loadHTMLString(
+                MarkdownRenderer.emptyPage, baseURL: MarkdownRenderer.pageBaseURL)
+        case .loading:
+            return
+        case .loaded:
+            guard content != shownContent else { return }
+            isReplacing = true
+            Task {
+                let replaced = await Self.replaceContent(of: webView, with: content)
+                isReplacing = false
+                if page != .loaded {
+                    // The page failed in the meantime: load it again.
+                    update()
+                } else if replaced {
+                    shownContent = content
+                    update()
+                } else {
+                    pageFailed()
+                }
+            }
         }
     }
 
-    private func loadDidEnd() {
-        isLoading = false
-        loadIfIdle()
+    /// Loads the page again after it failed, unless it failed too often
+    /// since the content last changed.
+    private func pageFailed() {
+        page = .notLoaded
+        shownContent = nil
+        guard retriesLeft > 0 else { return }
+        retriesLeft -= 1
+        update()
     }
 
-    // MARK: Scroll position (app-only scripts in an isolated world)
-
-    private static func scrollPosition(of webView: WKWebView) async -> Double? {
+    /// Replaces the content of the page's `main` element with `content`.
+    /// Returns whether the page had that element and the content was
+    /// replaced.
+    ///
+    /// The script runs in the app's isolated world, and the content is passed
+    /// as an argument, never spliced into the code. It is parsed like the
+    /// body of a page that contained it: scripts in it never run, and the
+    /// page's policy and the content blocker apply to everything it would
+    /// load. The script takes `querySelector` from the prototype, because
+    /// elements with a `name` could shadow it on `document` (the sanitizer
+    /// removes `name`, so this only matters if markup ever slipped through).
+    static func replaceContent(of webView: WKWebView, with content: String) async -> Bool {
         let result = try? await webView.callAsyncJavaScript(
-            "return window.scrollY", arguments: [:], in: nil, contentWorld: .defaultClient)
-        return (result as? NSNumber)?.doubleValue
-    }
-
-    private static func scroll(_ webView: WKWebView, to position: Double) async {
-        // The position is passed as an argument, never spliced into the code.
-        _ = try? await webView.callAsyncJavaScript(
-            "window.scrollTo(0, position)", arguments: ["position": position], in: nil,
-            contentWorld: .defaultClient)
+            """
+            const main = Document.prototype.querySelector.call(document, "body > main");
+            if (main === null) {
+              return false;
+            }
+            main.innerHTML = content;
+            return true;
+            """,
+            arguments: ["content": content], in: nil, contentWorld: .defaultClient)
+        return result as? Bool == true
     }
 
     // MARK: WKNavigationDelegate
@@ -266,42 +323,36 @@ public final class PreviewCoordinator: NSObject, WKNavigationDelegate, WKUIDeleg
             && navigationResponse.response.url == MarkdownRenderer.pageBaseURL ? .allow : .cancel
     }
 
-    /// Restores the scroll position, then loads the next page if any.
+    /// Puts the content into the page once it is loaded.
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
-        hasShownPage = true
-        if let position = scrollPosition {
-            scrollPosition = nil
-            Task {
-                await Self.scroll(webView, to: position)
-                loadDidEnd()
-            }
-        } else {
-            loadDidEnd()
-        }
+        guard page == .loading else { return }
+        page = .loaded
+        update()
     }
 
-    /// Continues with the next page.
+    /// Tries again if the page could not be loaded.
     public func webView(
         _ webView: WKWebView, didFail navigation: WKNavigation?, withError error: any Error
     ) {
-        loadDidEnd()
+        if page == .loading {
+            pageFailed()
+        }
     }
 
-    /// Continues with the next page.
+    /// Tries again if the page could not be loaded.
     public func webView(
         _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation?,
         withError error: any Error
     ) {
-        loadDidEnd()
+        if page == .loading {
+            pageFailed()
+        }
     }
 
-    /// Shows the page again after the page's process ended.
+    /// Shows the page and its content again after the page's process ended
+    /// (for example, it crashed).
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        // The page's process ended (e.g. it crashed): show the page again.
-        isLoading = false
-        hasShownPage = false
-        pendingPage = requestedPage
-        loadIfIdle()
+        pageFailed()
     }
 
     // MARK: WKUIDelegate

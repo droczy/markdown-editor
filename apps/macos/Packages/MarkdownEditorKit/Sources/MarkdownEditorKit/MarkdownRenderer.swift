@@ -70,6 +70,12 @@ public enum MarkdownRenderer {
     /// Base64-encoded SHA-256 hash of ``pageStylesheet`` (as in the policy).
     static let pageStylesheetHash: String = MarkdownEditorCore.pageStylesheetHash()
 
+    /// The preview page without content: the policy, the stylesheet and an
+    /// empty `main` element, the only child of `body`. The preview loads it
+    /// once with ``pageBaseURL`` and puts ``renderPageContent(_:taskToken:)``
+    /// into that element.
+    public static let emptyPage: String = MarkdownEditorCore.emptyPage()
+
     /// Renders `markdown` off the calling actor, so that large documents
     /// never block the user interface.
     @concurrent
@@ -77,17 +83,18 @@ public enum MarkdownRenderer {
         try renderSynchronously(markdown)
     }
 
-    /// Renders `markdown` to a complete HTML page for the preview, off the
-    /// calling actor. The page carries a strict Content Security Policy and
-    /// must be loaded with ``pageBaseURL``. With a `taskToken` (letters,
-    /// digits and hyphens, e.g. a UUID), task checkboxes become links that
-    /// the preview hands over as ``PreviewLinkAction/toggleTask(token:index:)``.
+    /// Renders `markdown` to the content of the preview page, off the
+    /// calling actor. It belongs into the `main` element of ``emptyPage``,
+    /// whose strict Content Security Policy then applies to it. With a
+    /// `taskToken` (letters, digits and hyphens, e.g. a UUID), task
+    /// checkboxes become links that the preview hands over as
+    /// ``PreviewLinkAction/toggleTask(token:index:)``.
     @concurrent
-    public static func renderPage(_ markdown: String, taskToken: String? = nil)
+    public static func renderPageContent(_ markdown: String, taskToken: String? = nil)
         async throws(Failure) -> String
     {
         try convertingErrors {
-            try MarkdownEditorCore.renderPage(markdown: markdown, taskToken: taskToken)
+            try MarkdownEditorCore.renderPageContent(markdown: markdown, taskToken: taskToken)
         }
     }
 

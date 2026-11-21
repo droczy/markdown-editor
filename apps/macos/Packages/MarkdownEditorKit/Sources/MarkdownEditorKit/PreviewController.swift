@@ -3,8 +3,9 @@ import Observation
 
 /// A rendered preview page and what it was rendered from.
 public struct PreviewPage: Equatable, Sendable {
-    /// The complete HTML page.
-    public let html: String
+    /// The content of the page (see
+    /// ``MarkdownRenderer/renderPageContent(_:taskToken:)``).
+    public let content: String
     /// The Markdown text the page shows.
     public let text: String
     /// The random token in the page's task checkbox links. A click is only
@@ -21,8 +22,8 @@ public struct PreviewPage: Equatable, Sendable {
 @MainActor
 @Observable
 public final class PreviewController {
-    /// Renders Markdown (first argument) to a complete preview page whose
-    /// task checkboxes carry the token (second argument).
+    /// Renders Markdown (first argument) to the content of a preview page
+    /// whose task checkboxes carry the token (second argument).
     public typealias Render =
         @Sendable (String, String) async throws(MarkdownRenderer.Failure) -> String
     /// Waits for the given duration; throws if the wait was cancelled.
@@ -51,7 +52,7 @@ public final class PreviewController {
     public init(
         delay: Duration = .milliseconds(200),
         render: @escaping Render = { markdown, token throws(MarkdownRenderer.Failure) in
-            try await MarkdownRenderer.renderPage(markdown, taskToken: token)
+            try await MarkdownRenderer.renderPageContent(markdown, taskToken: token)
         },
         sleep: @escaping Sleep = { duration in try await Task.sleep(for: duration) }
     ) {
@@ -64,6 +65,12 @@ public final class PreviewController {
     /// when a document is opened.
     public func show(_ text: String) {
         pendingText = text
+        renderNow()
+    }
+
+    /// Renders the latest text at once instead of after the pause. Used after
+    /// a click on a task checkbox, which deserves an immediate answer.
+    public func renderNow() {
         pause += 1
         pauseTask?.cancel()
         isPausing = false
@@ -106,8 +113,8 @@ public final class PreviewController {
         Task { [weak self] in
             let result: Result<PreviewPage, MarkdownRenderer.Failure>
             do throws(MarkdownRenderer.Failure) {
-                let html = try await render(text, token)
-                result = .success(PreviewPage(html: html, text: text, taskToken: token))
+                let content = try await render(text, token)
+                result = .success(PreviewPage(content: content, text: text, taskToken: token))
             } catch {
                 result = .failure(error)
             }

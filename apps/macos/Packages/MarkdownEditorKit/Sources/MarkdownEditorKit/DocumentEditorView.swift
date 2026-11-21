@@ -35,14 +35,18 @@ public struct DocumentEditorView: View {
     /// Checks or unchecks a task after a click on its checkbox in the
     /// preview. Ignored unless the click came from the page that is shown
     /// and the text has not changed since that page was rendered (otherwise
-    /// the index could point to a different task).
+    /// the index could point to a different task). The preview shows the
+    /// change at once, without the pause it waits for while typing.
     private func toggleTask(token: String, index: Int) {
         guard let page = preview.page, page.taskToken == token, page.text == text,
             let edit = MarkdownRenderer.taskEdit(in: text, index: index)
         else { return }
-        editor.replace(
+        if editor.replace(
             utf8Offset: edit.utf8Offset, utf8Length: 1, with: edit.replacement, ifTextIs: text,
             actionName: "Toggle Task")
+        {
+            preview.renderNow()
+        }
     }
 }
 
@@ -58,7 +62,7 @@ struct PreviewPane: View {
     @State private var noticeTask: Task<Void, Never>?
 
     var body: some View {
-        PreviewWebView(page: controller.page?.html, zoom: zoom) { url, window in
+        PreviewWebView(content: controller.page?.content, zoom: zoom) { url, window in
             let action = PreviewLinkAction(resolvedURL: url)
             if case .toggleTask(let token, let index) = action {
                 onToggleTask(token, index)
@@ -88,13 +92,14 @@ struct PreviewPane: View {
             if let notice {
                 NoticeView(notice: notice)
                     .padding(12)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .transition(.asymmetric(insertion: .identity, removal: .opacity))
             }
         }
-        .animation(.easeOut(duration: 0.2), value: notice)
     }
 
-    /// Shows `notice` for a moment; a new notice replaces the current one.
+    /// Shows `notice` for a moment. It appears at once, and a new notice
+    /// replaces the current one at once, so a click gets an immediate
+    /// answer; only hiding it is animated, with a short fade.
     private func show(_ notice: LinkCopy.Notice) {
         self.notice = notice
         AccessibilityNotification.Announcement(
@@ -104,7 +109,9 @@ struct PreviewPane: View {
         noticeTask = Task {
             try? await Task.sleep(for: .seconds(2.5))
             if !Task.isCancelled {
-                self.notice = nil
+                withAnimation(.easeOut(duration: 0.15)) {
+                    self.notice = nil
+                }
             }
         }
     }

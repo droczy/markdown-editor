@@ -119,8 +119,8 @@ extension WKWebView {
 }
 
 /// Markup that tries every way to load something, run a script or navigate.
-/// It is inserted into the page directly, bypassing the sanitizer, to prove
-/// that the preview's other defences hold on their own.
+/// It is put into the page directly, bypassing the sanitizer, to prove that
+/// the preview's other defences hold on their own.
 private func hostileMarkup(port: UInt16) -> String {
     let server = "http://127.0.0.1:\(port)"
     return """
@@ -157,11 +157,9 @@ private func hostileMarkup(port: UInt16) -> String {
         """
 }
 
-/// A page with the preview's template and policy, but hostile content.
-private func hostilePage(port: UInt16, withPolicy: Bool) async throws -> String {
-    let template = try await MarkdownRenderer.renderPage("")
-    var page = template.replacingOccurrences(
-        of: "<main>\n", with: "<main>\n\(hostileMarkup(port: port))")
+/// The preview's empty page, optionally without its policy.
+private func emptyPage(withPolicy: Bool) throws -> String {
+    var page = MarkdownRenderer.emptyPage
     if !withPolicy {
         let policy = try #require(
             page.firstRange(of: /<meta http-equiv="Content-Security-Policy"[^>]*>/))
@@ -170,13 +168,31 @@ private func hostilePage(port: UInt16, withPolicy: Bool) async throws -> String 
     return page
 }
 
+/// How the hostile markup gets into the page.
+enum HostileContent: CustomTestStringConvertible {
+    /// Part of the page when it is loaded.
+    case loaded
+    /// Put into the loaded page in place of its content, as the preview
+    /// shows every document.
+    case replaced
+
+    var testDescription: String {
+        switch self {
+        case .loaded: "loaded with the page"
+        case .replaced: "replacing the content"
+        }
+    }
+}
+
 @MainActor
 @Suite("Preview security", .serialized)
 struct PreviewSecurityTests {
-    /// Loads `page` into a preview-configured web view, clicks the links and
-    /// submits the form from the app's world, and returns the web view.
+    /// Shows the hostile markup in a preview-configured web view, clicks the
+    /// links and submits the form from the app's world, and returns the web
+    /// view.
     private func loadAndPoke(
-        _ page: String, withContentBlocker: Bool, delegate: StrictNavigationDelegate
+        port: UInt16, _ content: HostileContent, withPolicy: Bool, withContentBlocker: Bool,
+        delegate: StrictNavigationDelegate
     ) async throws -> WKWebView {
         let webView = PreviewWKWebView(
             frame: NSRect(x: 0, y: 0, width: 800, height: 600),
@@ -185,7 +201,24 @@ struct PreviewSecurityTests {
             webView.configuration.userContentController.add(try await ContentBlocker.ruleList())
         }
         webView.navigationDelegate = delegate
-        webView.loadHTMLString(page, baseURL: MarkdownRenderer.pageBaseURL)
+        let page = try emptyPage(withPolicy: withPolicy)
+        switch content {
+        case .loaded:
+            webView.loadHTMLString(
+                page.replacingOccurrences(
+                    of: "<main>\n", with: "<main>\n\(hostileMarkup(port: port))"),
+                baseURL: MarkdownRenderer.pageBaseURL)
+        case .replaced:
+            webView.loadHTMLString(page, baseURL: MarkdownRenderer.pageBaseURL)
+            await eventually("the empty page is loaded") {
+                await webView.evaluate(
+                    "return document.readyState === 'complete' && !!document.querySelector('main')"
+                ) as? Bool == true
+            }
+            let replaced = await PreviewCoordinator.replaceContent(
+                of: webView, with: hostileMarkup(port: port))
+            #expect(replaced)
+        }
         await webView.waitUntilLoaded(containing: "hostile")
         _ = await webView.evaluate(
             """
@@ -200,24 +233,32 @@ struct PreviewSecurityTests {
 
     @Test(
         "Each defence alone blocks every request and every script",
-        arguments: [(true, true), (true, false), (false, true)])
-    func defencesHoldAlone(withPolicy: Bool, withContentBlocker: Bool) async throws {
+        arguments: [HostileContent.loaded, .replaced], [(true, true), (true, false), (false, true)])
+    func defencesHoldAlone(
+        content: HostileContent, defences: (withPolicy: Bool, withContentBlocker: Bool)
+    ) async throws {
         let server = try await RecordingServer()
-        let page = try await hostilePage(port: server.port, withPolicy: withPolicy)
         let delegate = StrictNavigationDelegate()
         let webView = try await loadAndPoke(
-            page, withContentBlocker: withContentBlocker, delegate: delegate)
+            port: server.port, content, withPolicy: defences.withPolicy,
+            withContentBlocker: defences.withContentBlocker, delegate: delegate)
 
         #expect(server.requests.isEmpty, "the preview sent requests: \(server.requests)")
         #expect(webView.title?.isEmpty != false, "a script ran: \(webView.title ?? "")")
+        #expect(
+            await webView.evaluate("return document.querySelectorAll('main').length") as? Int == 1,
+            "the content escaped the main element")
     }
 
-    @Test("Without both defences the hostile page does send requests (test is sound)")
-    func hostilePageIsHostile() async throws {
+    @Test(
+        "Without both defences the hostile markup does send requests (test is sound)",
+        arguments: [HostileContent.loaded, .replaced])
+    func hostileMarkupIsHostile(content: HostileContent) async throws {
         let server = try await RecordingServer()
-        let page = try await hostilePage(port: server.port, withPolicy: false)
         let delegate = StrictNavigationDelegate()
-        _ = try await loadAndPoke(page, withContentBlocker: false, delegate: delegate)
+        _ = try await loadAndPoke(
+            port: server.port, content, withPolicy: false, withContentBlocker: false,
+            delegate: delegate)
         #expect(!server.requests.isEmpty)
     }
 
@@ -233,9 +274,9 @@ struct PreviewSecurityTests {
             configuration: PreviewWebView.makeConfiguration())
         let delegate = StrictNavigationDelegate()
         webView.navigationDelegate = delegate
-        let page = try await MarkdownRenderer.renderPage("text")
         webView.loadHTMLString(
-            page.replacingOccurrences(of: "<main>\n", with: "<main>\n<p id=\"probe\">p</p>"),
+            MarkdownRenderer.emptyPage.replacingOccurrences(
+                of: "<main>\n", with: "<main>\n<p id=\"probe\">p</p>"),
             baseURL: MarkdownRenderer.pageBaseURL)
         await webView.waitUntilLoaded(containing: "probe")
         let fontSize = await webView.evaluate(
@@ -261,37 +302,114 @@ struct PreviewCoordinatorTests {
         return (webView, coordinator, links)
     }
 
-    private func page(_ version: Int, lines: Int = 300) async throws -> String {
+    private func content(_ version: Int, lines: Int = 300) async throws -> String {
         let text = (1...lines).map { "Line \($0)" }.joined(separator: "\n\n")
-        let page = try await MarkdownRenderer.renderPage(
+        let content = try await MarkdownRenderer.renderPageContent(
             "[web](https://example.com/a) [mail](mailto:a@example.com) "
                 + "[file](other.md) [anchor](#top)\n\n\(text)")
-        return page.replacingOccurrences(
-            of: "<main>\n", with: "<main>\n<p id=\"version-\(version)\">v</p>")
+        return "<p id=\"version-\(version)\">v</p>\(content)"
     }
 
-    @Test("Replacing the page keeps the scroll position")
+    private func tasks() async throws -> String {
+        let content = try await MarkdownRenderer.renderPageContent(
+            "- [ ] first\n- [x] second", taskToken: "test-token")
+        return "<p id=\"tasks\">t</p>\(content)"
+    }
+
+    @Test("A new version replaces the content without reloading the page")
+    func replacesContentInPlace() async throws {
+        let (webView, coordinator, _) = makePreview()
+        coordinator.show(try await content(1, lines: 1))
+        await webView.waitUntilLoaded(containing: "version-1")
+        // A mark outside the content, which a reload would remove.
+        _ = await webView.evaluate("document.body.dataset.mark = 'kept'")
+
+        coordinator.show(try await content(2, lines: 1))
+        await webView.waitUntilLoaded(containing: "version-2")
+        #expect(
+            await webView.evaluate("return !!document.getElementById('version-1')") as? Bool
+                == false)
+        #expect(await webView.evaluate("return document.body.dataset.mark") as? String == "kept")
+        #expect(coordinator.pageLoads == 1)
+    }
+
+    @Test("Content cannot keep the next version out by shadowing what the script uses")
+    func contentCannotShadowTheScript() async throws {
+        let (webView, coordinator, _) = makePreview()
+        // Bypasses the sanitizer, which removes `name` attributes.
+        coordinator.show(
+            #"<p id="version-1">v</p><img name="querySelector"><form name="querySelector"></form>"#
+                + #"<img name="body"><img name="innerHTML"><img name="Document">"#)
+        await webView.waitUntilLoaded(containing: "version-1")
+        #expect(
+            await webView.evaluate("return typeof document.querySelector") as? String == "object",
+            "the test does not shadow anything")
+
+        coordinator.show(try await content(2, lines: 1))
+        await webView.waitUntilLoaded(containing: "version-2")
+        #expect(coordinator.pageLoads == 1, "the page had to be loaded again")
+    }
+
+    @Test("Replacing the content keeps the scroll position")
     func keepsScrollPosition() async throws {
         let (webView, coordinator, _) = makePreview()
-        coordinator.show(try await page(1))
+        coordinator.show(try await content(1))
         await webView.waitUntilLoaded(containing: "version-1")
         _ = await webView.evaluate("window.scrollTo(0, 1500)")
         #expect(await webView.evaluate("return window.scrollY") as? Double == 1500)
 
-        coordinator.show(try await page(2))
+        coordinator.show(try await content(2))
         await webView.waitUntilLoaded(containing: "version-2")
-        await eventually("the scroll position is restored") {
-            await webView.evaluate("return window.scrollY") as? Double == 1500
+        #expect(await webView.evaluate("return window.scrollY") as? Double == 1500)
+    }
+
+    @Test("Replaced content is governed by the page's policy and stylesheet")
+    func replacedContentKeepsThePolicy() async throws {
+        let (webView, coordinator, _) = makePreview()
+        coordinator.show(try await content(1, lines: 1))
+        await webView.waitUntilLoaded(containing: "version-1")
+        let policy = await webView.evaluate(
+            "return document.head.querySelector('meta[http-equiv=\"Content-Security-Policy\"]')"
+                + ".content")
+        #expect(policy as? String == MarkdownRenderer.pageContentSecurityPolicy)
+        let fontSize = await webView.evaluate(
+            "return getComputedStyle(document.getElementById('version-1')).fontSize")
+        #expect(fontSize as? String == "15px")
+    }
+
+    @Test("After the page's process ended, the page is loaded again, but not endlessly")
+    func reloadsAfterTheProcessEnded() async throws {
+        let (webView, coordinator, _) = makePreview()
+        coordinator.show(try await content(1, lines: 1))
+        await webView.waitUntilLoaded(containing: "version-1")
+        #expect(coordinator.pageLoads == 1)
+
+        // Every end of the process loads the page and the content again, up
+        // to the limit; then the preview waits for the next change.
+        for retry in 1...PreviewCoordinator.retries {
+            // A mark that the new page does not have, to tell it apart.
+            _ = await webView.evaluate("document.body.dataset.mark = 'old'")
+            coordinator.webViewWebContentProcessDidTerminate(webView)
+            #expect(coordinator.pageLoads == 1 + retry)
+            await eventually("the new page shows the content") {
+                await webView.evaluate(
+                    "return !document.body.dataset.mark && !!document.getElementById('version-1')"
+                ) as? Bool == true
+            }
         }
+        coordinator.webViewWebContentProcessDidTerminate(webView)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(coordinator.pageLoads == 1 + PreviewCoordinator.retries)
+
+        coordinator.show(try await content(2, lines: 1))
+        await webView.waitUntilLoaded(containing: "version-2")
+        #expect(coordinator.pageLoads == 2 + PreviewCoordinator.retries)
     }
 
     @Test("A click on a task checkbox is handed to the app as a task link")
     func taskCheckboxes() async throws {
         let (webView, coordinator, links) = makePreview()
-        let page = try await MarkdownRenderer.renderPage(
-            "- [ ] first\n- [x] second", taskToken: "test-token")
-        coordinator.show(
-            page.replacingOccurrences(of: "<main>\n", with: "<main>\n<p id=\"tasks\">t</p>"))
+        coordinator.show(try await tasks())
         await webView.waitUntilLoaded(containing: "tasks")
 
         _ = await webView.evaluate(
@@ -306,10 +424,7 @@ struct PreviewCoordinatorTests {
     @Test("A click anywhere on a task checkbox reaches its link")
     func taskCheckboxHitArea() async throws {
         let (webView, coordinator, _) = makePreview()
-        let page = try await MarkdownRenderer.renderPage(
-            "- [ ] first\n- [x] second", taskToken: "test-token")
-        coordinator.show(
-            page.replacingOccurrences(of: "<main>\n", with: "<main>\n<p id=\"tasks\">t</p>"))
+        coordinator.show(try await tasks())
         await webView.waitUntilLoaded(containing: "tasks")
 
         // For each task: the link's box (also what accessibility reports)
@@ -335,7 +450,7 @@ struct PreviewCoordinatorTests {
     @Test("Clicked links are handed to the app and never navigate")
     func linksAreIntercepted() async throws {
         let (webView, coordinator, links) = makePreview()
-        coordinator.show(try await page(1, lines: 1))
+        coordinator.show(try await content(1, lines: 1))
         await webView.waitUntilLoaded(containing: "version-1")
 
         _ = await webView.evaluate(
