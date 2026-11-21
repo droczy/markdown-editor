@@ -91,7 +91,8 @@ public struct PreviewWebView: NSViewRepresentable {
 
 /// The preview's web view: offers only harmless context menu items, no
 /// system services (such as "Open" for a link, which would open it) and does
-/// not accept drops (a dropped file would otherwise be opened in it).
+/// not accept drops (a dropped file would otherwise be opened in it). It keeps
+/// the mouse pointer the page chose (see ``cursorUpdate(with:)``).
 public final class PreviewWKWebView: WKWebView {
     /// Context menu items that are kept; everything else (open link,
     /// download, share, search the web, reload, …) is removed.
@@ -101,12 +102,23 @@ public final class PreviewWKWebView: WKWebView {
         "WKMenuItemIdentifierLookUp",
     ]
 
+    /// Follows the mouse over the web view, for ``cursorUpdate(with:)``.
+    /// The tracking area does not keep its owner, so the web view does.
+    let pointer = PointerTracker()
+
     override public init(frame: CGRect, configuration: WKWebViewConfiguration) {
         super.init(frame: frame, configuration: configuration)
         allowsLinkPreview = false
         allowsBackForwardNavigationGestures = false
         allowsMagnification = false
         unregisterDraggedTypes()
+        // A tracking area of its own: the web view handles mouse moves
+        // internally and never calls `mouseMoved(with:)`.
+        addTrackingArea(
+            NSTrackingArea(
+                rect: .zero,
+                options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+                owner: pointer, userInfo: nil))
     }
 
     @available(*, unavailable)
@@ -117,6 +129,24 @@ public final class PreviewWKWebView: WKWebView {
     override public func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         unregisterDraggedTypes()
+    }
+
+    /// Keeps the pointer the page chose while the mouse is on the page.
+    ///
+    /// AppKit asks the view under the mouse to update the pointer when the
+    /// mouse enters it, but also when the title bar changes, for example when
+    /// a click on a checkbox marks the document as edited or when it is
+    /// saved. The default then sets the arrow, although the mouse is still on
+    /// the checkbox, and the page sets its pointer again only when the mouse
+    /// moves: the arrow stayed, or the pointer flickered while the mouse
+    /// moved. Once the mouse has moved on the page, the page has set its
+    /// pointer, so that pointer is set again instead.
+    override public func cursorUpdate(with event: NSEvent) {
+        if pointer.hasMovedInside {
+            NSCursor.current.set()
+        } else {
+            super.cursorUpdate(with: event)
+        }
     }
 
     /// Offers nothing to the system's services, so the context menu shows no
@@ -154,6 +184,26 @@ public final class PreviewWKWebView: WKWebView {
             }
             previousWasSeparator = item.isSeparatorItem
         }
+    }
+}
+
+/// Follows the mouse over the preview's web view: whether it moved there
+/// since it entered.
+@MainActor
+final class PointerTracker: NSResponder {
+    /// Whether the mouse moved on the web view since it last entered it.
+    private(set) var hasMovedInside = false
+
+    override func mouseEntered(with event: NSEvent) {
+        hasMovedInside = false
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        hasMovedInside = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        hasMovedInside = false
     }
 }
 

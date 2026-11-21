@@ -27,12 +27,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   content (`EMPTY_PAGE`) and the content itself (`render_page_content`).
 - A click on a task checkbox shows the change in the preview at once,
   without the pause the preview waits for while typing. Before, a click
-  waited for that pause and reloaded the whole page, and the mouse pointer
-  stayed an arrow until the mouse moved.
+  waited for that pause and reloaded the whole page.
 - The notice after a click on a link appears at once and fades out within
   0.15 seconds; it used to fade and slide in and out over 0.2 seconds. A
   new notice replaces the current one at once. A UI test checks that the
   notice disappears by itself.
+
+### Fixed
+
+- The mouse pointer stays a pointing hand on a checkbox or link in the
+  preview when the window's title bar changes, for example when a click
+  marks the document as edited or when it is saved. Before, it turned
+  into an arrow until the mouse moved, or flickered while the mouse
+  moved. Unit tests cover when the preview keeps the pointer and when it
+  leaves it to the system.
 
 ### Security
 
