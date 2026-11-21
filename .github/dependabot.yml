@@ -17,5 +17,10 @@ updates:
       interval: weekly
     cooldown:
       default-days: 14
+    # All steps of the CodeQL Action (init, analyze) must use the same
+    # version, so they are updated in one pull request.
+    groups:
+      codeql-action:
+        patterns: ["github/codeql-action*"]
     commit-message:
       prefix: ci
