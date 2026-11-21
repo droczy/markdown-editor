@@ -16,6 +16,9 @@ Completed reports are published in `docs/security/reviews/`:
   macOS app skeleton.
 - [2026-11: v0.1.0-beta.1](reviews/2026-11-v0.1.0-beta.1.md): editor,
   preview, links, task checkboxes and the release workflow.
+- [2026-11: v0.1.0-beta.2](reviews/2026-11-v0.1.0-beta.2.md): the preview
+  updating in place, its reload limit, task clicks and the mouse pointer,
+  and the link notice.
 
 ## When reviews happen
 

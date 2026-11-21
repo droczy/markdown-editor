@@ -1,6 +1,6 @@
 # Threat model
 
-Last updated: 2026-11-19, for v0.1.0-beta.1 (macOS). This document is
+Last updated: 2026-11-21, for v0.1.0-beta.2 (macOS). This document is
 updated at every full review (see the [process](README.md)).
 
 ## System overview
@@ -13,9 +13,11 @@ updated at every full review (see the [process](README.md)).
 - **macOS app** (`apps/macos`) is a SwiftUI document app. It opens, edits
   and saves Markdown files inside the App Sandbox. The editor is an
   `NSTextView`; the preview is a locked-down web view (`WKWebView`) that
-  shows the page the core rendered. A click on a link copies the address
-  the core checked to the clipboard; a click on a task checkbox changes
-  one character in the editor, after the core checked the page's token.
+  loads the core's page without content once and then puts the content the
+  core rendered into it for every new version of the document. A click on
+  a link copies the address the core checked to the clipboard; a click on
+  a task checkbox changes one character in the editor, after the core
+  checked the page's token.
 - **Build and distribution:** GitHub repository, GitHub Actions,
   dependencies from crates.io, Xcode project generated with XcodeGen;
   releases built by the release workflow from signed tags.
@@ -115,7 +117,7 @@ protected by signed commits.
 
 | ID | Threat | Mitigation | Status |
 | --- | --- | --- | --- |
-| D1 | Large or pathological documents exhaust CPU or memory | Limits: 50 MiB per file, 10 MiB per render, nesting depth 1000, 1,000,000 syntax tree nodes (which also bounds the preview's memory, SR-2026-005), linear-time escaping. The editor lays out text with TextKit 1 and non-contiguous layout, so long paragraphs stay responsive (SR-2026-004). After its web content process ends, the preview loads its page again at most twice until the document changes. Each limit has worst-case tests, the editor a test with a 6 MB paragraph; fuzzing | in place |
+| D1 | Large or pathological documents exhaust CPU or memory | Limits: 50 MiB per file, 10 MiB per render, nesting depth 1000, 1,000,000 syntax tree nodes (which also bounds the preview's memory, SR-2026-005), linear-time escaping. The editor lays out text with TextKit 1 and non-contiguous layout, so long paragraphs stay responsive (SR-2026-004). After its web content process ends, the preview loads its page again at most twice until the document changes, also when the process ends while the content is replaced. Each limit has worst-case tests, the editor a test with a 6 MB paragraph; fuzzing | in place |
 | D2 | Deep nesting overflows the stack | Iterative depth check; tests on a 512 KiB stack | in place |
 | D3 | An unexpected panic in the core crashes the app and loses unsaved text | `panic = unwind`; UniFFI turns panics into Swift errors | in place |
 | D4 | Rendering blocks the user interface | Rendering off the main actor, after a pause in typing; at most one render at a time | in place |

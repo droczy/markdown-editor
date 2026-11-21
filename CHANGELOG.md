@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-beta.2] - 2026-11-21
+
 ### Added
 
 - Snapshot test of `docs/example.md`: the preview content of the example
@@ -15,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   update) fails the tests.
 - `FEATURES.md` plans a command to open files from the terminal, together
   with the folders and file tree.
+- Full security review of this release (preview updates in place, reload
+  limit, task clicks and the mouse pointer, link notice): report in
+  `docs/security/reviews/2026-11-v0.1.0-beta.2.md`. It has no findings;
+  the hardening it led to is listed under *Security*.
 
 ### Changed
 
@@ -287,5 +293,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silently: the system asks how to resolve the conflict.
 - Read-only files are not modified.
 
-[Unreleased]: https://github.com/droczy/markdown-editor/compare/v0.1.0-beta.1...HEAD
+[Unreleased]: https://github.com/droczy/markdown-editor/compare/v0.1.0-beta.2...HEAD
+[0.1.0-beta.2]: https://github.com/droczy/markdown-editor/compare/v0.1.0-beta.1...v0.1.0-beta.2
 [0.1.0-beta.1]: https://github.com/droczy/markdown-editor/releases/tag/v0.1.0-beta.1
