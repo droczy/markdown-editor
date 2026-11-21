@@ -12,12 +12,15 @@ struct PageAndLinkTests {
         #expect(MarkdownRenderer.pageBaseURL.absoluteString == "markdown-preview://document/")
     }
 
-    @Test("Pages carry the policy and the content")
+    @Test("The empty page carries the policy; the content goes into it")
     func pageContent() async throws {
-        let page = try await MarkdownRenderer.renderPage("# Hi")
+        let page = MarkdownRenderer.emptyPage
         #expect(page.hasPrefix("<!DOCTYPE html>"))
         #expect(page.contains(MarkdownRenderer.pageContentSecurityPolicy))
-        #expect(page.contains("<h1>Hi</h1>"))
+        #expect(page.contains("<body>\n<main>\n</main>\n</body>"))
+        #expect(try await MarkdownRenderer.renderPageContent("# Hi") == "<h1>Hi</h1>\n")
+        let tasks = try await MarkdownRenderer.renderPageContent("- [ ] a", taskToken: "t-1")
+        #expect(tasks.contains("href=\"markdown-preview://task/t-1/0\""))
     }
 
     @Test("Page errors are typed like render errors")
@@ -26,7 +29,7 @@ struct PageAndLinkTests {
         let markdown = String(repeating: "a", count: Int(limit) + 1)
         await #expect(throws: MarkdownRenderer.Failure.inputTooLarge(size: limit + 1, limit: limit))
         {
-            try await MarkdownRenderer.renderPage(markdown)
+            try await MarkdownRenderer.renderPageContent(markdown)
         }
     }
 

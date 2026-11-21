@@ -67,7 +67,7 @@ struct PreviewControllerTests {
         await eventually("rendering starts") { await renders.arrivals == ["a"] }
         #expect(await pauses.arrivals.isEmpty)
         await renders.openOne()
-        await eventually("the page is shown") { controller.page?.html == "page:a" }
+        await eventually("the page is shown") { controller.page?.content == "page:a" }
         #expect(controller.failure == nil)
     }
 
@@ -85,7 +85,7 @@ struct PreviewControllerTests {
         await pauses.openOne()
         await eventually("the latest text renders") { await renders.arrivals == ["ab"] }
         await renders.openOne()
-        await eventually("the page is shown") { controller.page?.html == "page:ab" }
+        await eventually("the page is shown") { controller.page?.content == "page:ab" }
         try? await Task.sleep(for: .milliseconds(50))
         #expect(await renders.arrivals == ["ab"])
     }
@@ -108,9 +108,9 @@ struct PreviewControllerTests {
         await eventually("the latest text renders next") {
             await renders.arrivals == ["a", "bc"]
         }
-        #expect(controller.page?.html == "page:a")
+        #expect(controller.page?.content == "page:a")
         await renders.openOne()
-        await eventually("the latest page is shown") { controller.page?.html == "page:bc" }
+        await eventually("the latest page is shown") { controller.page?.content == "page:bc" }
     }
 
     @Test("A failure keeps the last page until the text renders again")
@@ -118,29 +118,47 @@ struct PreviewControllerTests {
         let controller = makeController()
         controller.show("a")
         await renders.openOne()
-        await eventually("the first page is shown") { controller.page?.html == "page:a" }
+        await eventually("the first page is shown") { controller.page?.content == "page:a" }
 
         controller.show("bad")
         await eventually("the bad text renders") { await renders.waitingCount == 1 }
         await renders.openOne()
         await eventually("the failure is reported") { controller.failure != nil }
         #expect(controller.failure == .internalError("bad"))
-        #expect(controller.page?.html == "page:a")
+        #expect(controller.page?.content == "page:a")
 
         controller.show("c")
         await eventually("the next text renders") { await renders.waitingCount == 1 }
         await renders.openOne()
-        await eventually("the new page is shown") { controller.page?.html == "page:c" }
+        await eventually("the new page is shown") { controller.page?.content == "page:c" }
         #expect(controller.failure == nil)
     }
 
-    @Test("The default renderer produces a preview page")
+    @Test("A change renders at once when asked to, without the pause")
+    func renderNowSkipsThePause() async {
+        let controller = makeController()
+        controller.textDidChange("a")
+        await eventually("the pause started") { await pauses.waitingCount == 1 }
+
+        controller.renderNow()
+        await eventually("rendering starts") { await renders.arrivals == ["a"] }
+        await renders.openOne()
+        await eventually("the page is shown") { controller.page?.content == "page:a" }
+        // The pause that was skipped ends without a second render.
+        await pauses.openOne()
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(await renders.arrivals == ["a"])
+    }
+
+    @Test("The default renderer produces the content of a preview page with task links")
     func defaultRenderer() async {
         let controller = PreviewController(delay: .zero)
-        controller.show("# Title")
+        controller.show("# Title\n\n- [ ] task")
         await eventually("the page is shown") { controller.page != nil }
-        #expect(controller.page?.html.contains("<h1>Title</h1>") == true)
+        let page = controller.page
+        #expect(page?.content.hasPrefix("<h1>Title</h1>") == true)
         #expect(
-            controller.page?.html.contains(MarkdownRenderer.pageContentSecurityPolicy) == true)
+            page?.content.contains("markdown-preview://task/\(page?.taskToken ?? "?")/0") == true)
+        #expect(page?.content.contains("<html") == false, "a whole page instead of its content")
     }
 }

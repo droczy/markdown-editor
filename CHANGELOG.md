@@ -20,10 +20,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `docs/releasing.md` recommends the release rehearsal and asks to read the
   release notes it assembles before tagging.
+- The preview updates in place: it loads its page once and then replaces
+  only the content of the page for every new version of the document. An
+  edit appears at once, and the scroll position simply stays; it no longer
+  needs to be restored after a reload. The core provides the page without
+  content (`EMPTY_PAGE`) and the content itself (`render_page_content`).
+- A click on a task checkbox shows the change in the preview at once,
+  without the pause the preview waits for while typing. Before, a click
+  waited for that pause and reloaded the whole page, and the mouse pointer
+  stayed an arrow until the mouse moved.
 - The notice after a click on a link appears at once and fades out within
   0.15 seconds; it used to fade and slide in and out over 0.2 seconds. A
   new notice replaces the current one at once. A UI test checks that the
   notice disappears by itself.
+
+### Security
+
+- Content that replaces the preview's content is governed by the same
+  defences as a loaded page: the page's Content Security Policy, the
+  content blocker, disabled JavaScript of the page and Lockdown Mode. The
+  app's script that replaces it runs in an isolated world, receives the
+  content as data and uses nothing the content could shadow. Tests put
+  hostile markup into the page in place: the policy alone and the content
+  blocker alone each stop every request and script.
+- After the preview's web content process ends, for example because it
+  ran out of memory, the preview loads its page again at most twice until
+  the document changes; before, it tried again without limit
+  (recommendation of the v0.1.0-beta.1 review).
 
 ## [0.1.0-beta.1] - 2026-11-19
 

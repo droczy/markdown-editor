@@ -22,10 +22,11 @@ the security model.
 - Editor on the left, preview on the right, each taking half of the window.
 - CommonMark and GitHub Flavored Markdown: tables, task lists,
   strikethrough and autolinks.
-- Updates after a short pause in typing and keeps its scroll position.
+- Updates in place after a short pause in typing, so it keeps its scroll
+  position.
 - Follows the light or dark appearance of the system.
 - Task checkboxes can be clicked: the task is checked or unchecked in the
-  text, and ⌘Z undoes it.
+  text, the preview shows it at once, and ⌘Z undoes it.
 - Links are never opened. A click copies the address (for email links only
   the address), and a short notice shows the real host.
 - Images are shown as placeholders with their description; nothing is
