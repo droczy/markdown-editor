@@ -41,8 +41,9 @@ li:has(> input[type="checkbox"]:first-child), li:has(> a:first-child > input[typ
 li > input[type="checkbox"]:first-child, li > a:first-child:has(> input[type="checkbox"]) { margin: 0 0.5em 0 -1.5em; vertical-align: middle; }
 /* Task checkboxes that can be clicked are links around the checkbox. The
    link has exactly the checkbox's size, so a click anywhere on the checkbox
-   goes to the link; the checkbox itself only shows the state. */
-a[href^="markdown-preview://task/"] { display: inline-block; line-height: 0; }
+   goes to the link; the checkbox itself only shows the state. The pointer
+   stays the arrow, as on other checkboxes on the Mac. */
+a[href^="markdown-preview://task/"] { display: inline-block; line-height: 0; cursor: default; }
 a[href^="markdown-preview://task/"] > input { margin: 0; pointer-events: none; }
 hr { height: 1px; margin: 1.5em 0; border: 0; background: var(--border); }
 table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }

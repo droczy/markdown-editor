@@ -514,6 +514,25 @@ struct PreviewCoordinatorTests {
         #expect(results as? [String] == ["covers=true hits=true", "covers=true hits=true"])
     }
 
+    @Test("Task checkboxes show the arrow, links keep the pointing hand")
+    func taskCheckboxPointer() async throws {
+        let (webView, coordinator, _) = makePreview()
+        let link = try await MarkdownRenderer.renderPageContent("[web](https://example.com/a)")
+        coordinator.show(try await tasks() + link)
+        await webView.waitUntilLoaded(containing: "tasks")
+
+        // `default` is the arrow; `auto` lets WebKit show the hand on links.
+        let pointers = await webView.evaluate(
+            """
+            return [...document.querySelectorAll('a')].map(link =>
+              `${link.getAttribute('href').split(':')[0]} ${getComputedStyle(link).cursor}`)
+            """)
+        #expect(
+            pointers as? [String] == [
+                "markdown-preview default", "markdown-preview default", "https auto",
+            ])
+    }
+
     @Test("Clicked links are handed to the app and never navigate")
     func linksAreIntercepted() async throws {
         let (webView, coordinator, links) = makePreview()
