@@ -15,7 +15,7 @@ settings:
     # The user-visible app name is defined only here (working title).
     APP_DISPLAY_NAME: Markdown Editor
     MARKETING_VERSION: 0.1.0
-    CURRENT_PROJECT_VERSION: 1
+    CURRENT_PROJECT_VERSION: 2
     ARCHS: arm64
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
