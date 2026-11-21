@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `docs/releasing.md` recommends the release rehearsal and asks to read the
   release notes it assembles before tagging.
+- The notice after a click on a link appears at once and fades out within
+  0.15 seconds; it used to fade and slide in and out over 0.2 seconds. A
+  new notice replaces the current one at once. A UI test checks that the
+  notice disappears by itself.
 
 ## [0.1.0-beta.1] - 2026-11-19
 
