@@ -109,6 +109,17 @@ final class EditorPreviewTests: XCTestCase {
         XCTAssertEqual(pastedClipboard(), "https://example.com/page")
     }
 
+    func testNoticeDisappearsByItself() {
+        let link = preview.links["Example"]
+        type("[Example](https://example.com/)", thenWaitFor: link)
+
+        link.click()
+        XCTAssertTrue(notice.waitForExistence(timeout: 10), "no notice")
+        // Shown for 2.5 seconds, then faded out within a fraction of a second.
+        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: notice)
+        wait(for: [gone], timeout: 10)
+    }
+
     func testEmailLinkCopiesOnlyTheAddress() {
         let link = preview.links["Mail"]
         type("[Mail](mailto:someone@example.com?subject=Hi)", thenWaitFor: link)

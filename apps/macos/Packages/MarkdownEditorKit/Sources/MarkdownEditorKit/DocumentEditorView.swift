@@ -92,13 +92,14 @@ struct PreviewPane: View {
             if let notice {
                 NoticeView(notice: notice)
                     .padding(12)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .transition(.asymmetric(insertion: .identity, removal: .opacity))
             }
         }
-        .animation(.easeOut(duration: 0.2), value: notice)
     }
 
-    /// Shows `notice` for a moment; a new notice replaces the current one.
+    /// Shows `notice` for a moment. It appears at once, and a new notice
+    /// replaces the current one at once, so a click gets an immediate
+    /// answer; only hiding it is animated, with a short fade.
     private func show(_ notice: LinkCopy.Notice) {
         self.notice = notice
         AccessibilityNotification.Announcement(
@@ -108,7 +109,9 @@ struct PreviewPane: View {
         noticeTask = Task {
             try? await Task.sleep(for: .seconds(2.5))
             if !Task.isCancelled {
-                self.notice = nil
+                withAnimation(.easeOut(duration: 0.15)) {
+                    self.notice = nil
+                }
             }
         }
     }

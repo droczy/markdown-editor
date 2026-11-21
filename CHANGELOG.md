@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without the pause the preview waits for while typing. Before, a click
   waited for that pause and reloaded the whole page, and the mouse pointer
   stayed an arrow until the mouse moved.
+- The notice after a click on a link appears at once and fades out within
+  0.15 seconds; it used to fade and slide in and out over 0.2 seconds. A
+  new notice replaces the current one at once. A UI test checks that the
+  notice disappears by itself.
 
 ### Security
 
