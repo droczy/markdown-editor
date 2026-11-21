@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A click on a task checkbox shows the change in the preview at once,
   without the pause the preview waits for while typing. Before, a click
   waited for that pause and reloaded the whole page.
+- Task checkboxes in the preview show the arrow pointer, like other
+  checkboxes on the Mac; links keep the pointing hand. A test checks the
+  pointer of both in the web view.
 - The notice after a click on a link appears at once and fades out within
   0.15 seconds; it used to fade and slide in and out over 0.2 seconds. A
   new notice replaces the current one at once. A UI test checks that the
@@ -35,12 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- The mouse pointer stays a pointing hand on a checkbox or link in the
-  preview when the window's title bar changes, for example when a click
-  marks the document as edited or when it is saved. Before, it turned
-  into an arrow until the mouse moved, or flickered while the mouse
-  moved. Unit tests cover when the preview keeps the pointer and when it
-  leaves it to the system.
+- The mouse pointer over the preview keeps the shape the page shows, such
+  as the pointing hand on a link, when the window's title bar changes,
+  for example when a click on a task checkbox marks the document as
+  edited or when it is saved. Before, it turned into an arrow until the
+  mouse moved, or flickered while the mouse moved. Unit tests cover when
+  the preview keeps the pointer and when it leaves it to the system.
 
 ### Security
 

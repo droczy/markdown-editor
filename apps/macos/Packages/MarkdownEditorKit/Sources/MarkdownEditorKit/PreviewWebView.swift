@@ -135,12 +135,12 @@ public final class PreviewWKWebView: WKWebView {
     ///
     /// AppKit asks the view under the mouse to update the pointer when the
     /// mouse enters it, but also when the title bar changes, for example when
-    /// a click on a checkbox marks the document as edited or when it is
-    /// saved. The default then sets the arrow, although the mouse is still on
-    /// the checkbox, and the page sets its pointer again only when the mouse
-    /// moves: the arrow stayed, or the pointer flickered while the mouse
-    /// moved. Once the mouse has moved on the page, the page has set its
-    /// pointer, so that pointer is set again instead.
+    /// a click on a task checkbox marks the document as edited or when it is
+    /// saved. The default then sets the arrow, although the mouse may rest on
+    /// a link, and the page sets its pointer again only when the mouse moves:
+    /// the arrow stayed, or the pointer flickered while the mouse moved. Once
+    /// the mouse has moved on the page, the page has set its pointer, so that
+    /// pointer is set again instead.
     override public func cursorUpdate(with event: NSEvent) {
         if pointer.hasMovedInside {
             NSCursor.current.set()
